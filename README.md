@@ -28,7 +28,7 @@
 <p align="center">
   <a href="https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-Setup.exe"><b>⬇ Download installer</b></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile.exe"><b>Portable .exe</b></a>
+  <a href="https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-Portable.exe"><b>Portable .exe</b></a>
   &nbsp;·&nbsp;
   <a href="https://www.supportkori.com/tasinpy"><b>☕ Buy Me a Coffee</b></a>
 </p>
@@ -86,7 +86,7 @@ It has two modes:
    - Launch ShareMile
 3. To uninstall, use *Settings → Apps → ShareMile → Uninstall*. It removes the app, shortcuts and firewall rule, and asks before deleting your settings.
 
-Prefer no installer? Grab the **[portable ShareMile.exe](https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile.exe)**. It needs the Microsoft Edge WebView2 Runtime, which Windows 10/11 already include.
+Prefer no installer? Grab **[ShareMile-Portable.exe](https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-Portable.exe)**. It needs the Microsoft Edge WebView2 Runtime, which Windows 10/11 already include.
 
 ## Usage
 
@@ -199,7 +199,7 @@ git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
 .\build.ps1 -Version 1.2.0
 ```
-Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.2.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.2.0\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
@@ -207,6 +207,7 @@ Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe
 
 ```text
 v1.2.0 (2026-11-21)
+- The portable download is now named ShareMile-Portable.exe (the installed app is still ShareMile.exe).
 - New: built-in downloader on the Receive page. Paste a link, tick files, press Download. 8 parallel connections, folders kept, pause/resume, and it resumes after a dropped connection, closing the app or a crash. Paste the sender's new link and an interrupted download continues.
 - New: "Download with IDM" (when IDM is installed) and "Browser download" buttons.
 - New: "New link" button on every share. The old link and QR stop working at once.

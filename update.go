@@ -79,7 +79,7 @@ func checkUpdate() (*ReleaseInfo, error) {
 	for _, a := range rel.Assets {
 		n := strings.ToLower(a.Name)
 		switch {
-		case n == "sharemile.exe":
+		case n == "sharemile-portable.exe" || n == "sharemile.exe": // portable build (old releases: ShareMile.exe)
 			info.ExeURL = a.URL
 		case strings.HasPrefix(n, "sharemile-setup") && strings.HasSuffix(n, ".exe"):
 			info.SetupURL = a.URL
@@ -107,7 +107,7 @@ func checkUpdateViaRedirect() (*ReleaseInfo, error) {
 	}
 	tag := loc[i+5:]
 	base := "https://github.com/" + repoSlug + "/releases/download/" + tag + "/"
-	info := &ReleaseInfo{Tag: tag, ExeURL: base + "ShareMile.exe", SetupURL: base + "ShareMile-Setup.exe"}
+	info := &ReleaseInfo{Tag: tag, ExeURL: base + "ShareMile-Portable.exe", SetupURL: base + "ShareMile-Setup.exe"}
 	info.Available = newer(tag, appVersion)
 	return info, nil
 }
@@ -168,7 +168,12 @@ func applyUpdate() error {
 	dir := filepath.Dir(exe)
 	if info.ExeURL != "" && dirWritable(dir) {
 		nw := exe + ".new"
-		if err := download(info.ExeURL, nw); err != nil {
+		err := download(info.ExeURL, nw)
+		if err != nil && strings.HasSuffix(info.ExeURL, "/ShareMile-Portable.exe") {
+			// releases before v1.2.0 named the portable file ShareMile.exe
+			err = download(strings.TrimSuffix(info.ExeURL, "ShareMile-Portable.exe")+"ShareMile.exe", nw)
+		}
+		if err != nil {
 			return err
 		}
 		old := exe + ".old"

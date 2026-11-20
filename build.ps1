@@ -1,4 +1,4 @@
-# Builds ShareMile.exe + installer and keeps every version side by side in builds\vX.Y.Z
+# Builds ShareMile-Portable.exe + ShareMile-Setup.exe and keeps every version side by side in builds\vX.Y.Z
 # Usage:  .\build.ps1 -Version 1.0.0
 param([string]$Version = "1.0.0")
 $ErrorActionPreference = "Stop"
@@ -19,7 +19,9 @@ $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFile
 if (-not $iscc) { throw "Inno Setup 6 not found" }
 & $iscc /Q "/DAppVersion=$Version" installer\ShareMile.iss
 if ($LASTEXITCODE -ne 0) { throw "installer build failed" }
-Copy-Item build\ShareMile.exe dist\ShareMile.exe -Force
+# The installed app is still ShareMile.exe; only the stand-alone download says Portable.
+Remove-Item dist\ShareMile.exe -ErrorAction SilentlyContinue
+Copy-Item build\ShareMile.exe dist\ShareMile-Portable.exe -Force
 
 # Versioned build history: never overwrite an existing version folder.
 $dest = "builds\v$Version"
@@ -27,7 +29,7 @@ if (Test-Path $dest) {
   Write-Host "builds\v$Version already exists; left untouched. Bump the version to keep a new build." -ForegroundColor Yellow
 } else {
   New-Item -ItemType Directory -Force $dest | Out-Null
-  Copy-Item dist\ShareMile.exe, dist\ShareMile-Setup.exe $dest
+  Copy-Item dist\ShareMile-Portable.exe, dist\ShareMile-Setup.exe $dest
   Write-Host "Saved build to $dest"
 }
 Get-ChildItem dist | Select-Object Name, @{n="MB";e={[math]::Round($_.Length/1MB,2)}}
