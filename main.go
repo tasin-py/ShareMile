@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"time"
 	"unsafe"
 
 	webview2 "github.com/jchv/go-webview2"
@@ -84,7 +85,7 @@ func main() {
 	flag.BoolVar(&pinTaskbar, "pin-taskbar", false, "pin ShareMile to the taskbar and exit")
 	flag.BoolVar(&pinStart, "pin-start", false, "pin ShareMile to Start and exit")
 	desktop := flag.Bool("desktop-shortcut", false, "create a desktop shortcut and exit")
-	flag.Bool("updated", false, "internal: started after an update")
+	updated := flag.Bool("updated", false, "internal: started after an update")
 	flag.Parse()
 
 	if *desktop {
@@ -107,9 +108,18 @@ func main() {
 	// One instance per data folder.
 	h := sha256.Sum256([]byte(strings.ToLower(appDataDir())))
 	mtx, _ := windows.UTF16PtrFromString("Local\\ShareMile-" + hex.EncodeToString(h[:6]))
-	if _, err := windows.CreateMutex(nil, false, mtx); err == windows.ERROR_ALREADY_EXISTS {
-		focusExisting()
-		return
+	for tries := 0; ; tries++ {
+		hm, err := windows.CreateMutex(nil, false, mtx)
+		if err != windows.ERROR_ALREADY_EXISTS {
+			break
+		}
+		windows.CloseHandle(hm)
+		// Right after a self-update the old copy is still shutting down: wait for it.
+		if !*updated || tries >= 60 {
+			focusExisting()
+			return
+		}
+		time.Sleep(250 * time.Millisecond)
 	}
 
 	go cleanupOldExe()
