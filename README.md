@@ -66,7 +66,10 @@ It has two modes:
   - uses **IPv6** when your ISP provides it
   - starts a free **Cloudflare relay** automatically when you share, so links open from any country even without a real IP (CGNAT)
 - **Share Network (swarm)**: a private group under a secret code. Downloads pull 4 MB pieces from the host *and* other members in parallel. SHA-256 verification means a member can't send you a corrupt or fake file. Interrupted downloads resume where they stopped.
-- **Receive page**: paste any ShareMile link or secret code and it opens or joins for you.
+- **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart.
+- **Download with IDM** (shown when IDM is installed) or **Browser download**, if you prefer.
+- **New link / New code**: retire a link or a network code in one click. Anyone holding the old one loses access.
+- **Bookmarks**: save your favourite network codes; they stay in the app and connect in one click.
 - **Files back to you**: let people drop files back to you from the share page.
 - **Live stats**: visitors, bytes sent, live speed.
 - **7 themes**: Pitch Black, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper. Text stays readable in all of them.
@@ -91,6 +94,7 @@ Prefer no installer? Grab the **[portable ShareMile.exe](https://github.com/tasi
 1. Open **Quick Share**, then **Add files** / **Add folder** (or paste a path).
 2. Press **Start sharing**.
 3. Send the link (**Copy link**) or let them scan the QR code. They open it in any browser, preview, and download.
+4. Want to cut off the old link? Press **New link**. The old link and QR stop working immediately; send the new one to whoever should still have access.
 
 <p align="center">
   <img src="docs/screenshots/web-share.png" alt="What the receiver sees in their browser" width="70%">
@@ -98,13 +102,26 @@ Prefer no installer? Grab the **[portable ShareMile.exe](https://github.com/tasi
 </p>
 
 ### Receive files
-Open **Receive** in the app and paste what you were sent. A link opens in your browser (no app needed for that; phones work too). A secret code (`SM-…`) joins that Share Network.
+People without the app just open the link in a browser. With the app it's faster and more reliable:
+
+1. Open **Receive** and paste the link (or a `SM-…` code, which joins that Share Network).
+2. ShareMile lists every file with its size. Tick what you want (or use the filter).
+3. Press **Download**. Files land in your download folder (*Settings → Downloads*) with their folders intact.
+   Or press **Download with IDM** to queue them in Internet Download Manager, or **Browser download**.
+
+Downloads use 8 connections at once and survive anything: pause and resume, a dropped connection, closing the app, even a crash. If the sender's relay link changes (their app restarted), paste their new link and the download continues.
+
+<p align="center">
+  <img src="docs/screenshots/app-receive.png" alt="Receive: pick files, then Download, Download with IDM or Browser download" width="80%">
+</p>
 
 ### Share a library with a group (Share Network)
 1. **Network → Host a network**: name it, add files/folders, then **Create network**.
 2. Send members the **secret code**.
 3. Members open **Network → Join with a code**, paste it, tick files and press **Download selected**.
 4. Keep *"Share what I download with other members"* on, and everyone gets faster.
+5. **Bookmark** a network with the bookmark icon (next to the code box, or on the network's card). Bookmarks stay in the app even after you leave, with a one-click **Connect**. Click the icon again to remove it.
+6. Hosts can press the red **New code** button to replace the secret code. Everyone who had the old code, including members who already joined, loses access until they get the new one; ShareMile warns you before doing it, and old members see *"The host replaced this network's secret code"*.
 
 <p align="center">
   <img src="docs/screenshots/app-network-join.png" alt="Joined network with file browser and downloads" width="80%">
@@ -122,7 +139,7 @@ Clicking **BDIX Transfer** tests your connection from the internet (via [portche
 
 > **Testing it yourself?** Open the link on your phone with **Wi-Fi off** (mobile data). Many routers can't open your own public IP from inside your own network, even when it works for everyone outside.
 
-> **Heads-up:** links contain your current public IP. If your ISP changes it, ShareMile notices within 10 minutes and shows the new link. Old links stop working, so just send the new one.
+> **Heads-up:** Relay links change when ShareMile restarts, and BDIX Transfer links contain your public IP, which your ISP may change (ShareMile notices within 10 minutes). Either way the app always shows the current link; just send the new one.
 
 ## Screenshots
 
@@ -147,7 +164,17 @@ Clicking **BDIX Transfer** tests your connection from the internet (via [portche
 
 ## Performance
 
-Measured on a 12-thread Windows 11 PC with v1.0.0. The download test pulled a 300 MB file repeatedly over the LAN at about **640 MB/s**.
+Measured on a 12-thread Windows 11 PC. The resource test (v1.0.0) pulled a 300 MB file repeatedly over the LAN at about **640 MB/s**.
+
+**Built-in downloader (v1.2.0)**, 600 MB file, sender and receiver on the same PC over its LAN address:
+
+| Path | Speed |
+|---|---|
+| ShareMile downloader (8 connections) | **~900 MB/s** |
+| Single connection (`curl`, for comparison) | ~210–340 MB/s |
+| Through the Cloudflare relay | ~9–10 MB/s *(set by Cloudflare's free tunnel, not by ShareMile)* |
+
+Real-world speed is capped by the slower of the two internet connections.
 
 <p align="center">
   <img src="docs/resource-usage.svg" alt="Resource usage chart" width="80%">
@@ -159,6 +186,8 @@ Measured on a 12-thread Windows 11 PC with v1.0.0. The download test pulled a 30
 - The UI is plain HTML in a WebView2 window, talking to the backend over a token-protected `127.0.0.1` connection.
 - A network code (`SM-…`) packs a random 80-bit key plus every address your PC can be reached on (LAN, public IPv4, IPv6, relay). Joining needs no central server. On the same LAN, members also find the host by UDP broadcast.
 - Swarm downloads split files into 4 MB pieces. Pieces from other members are checked against SHA-256 hashes from the host before they're written.
+- The built-in downloader splits files into 4 MB ranges fetched over 8 connections into a sparse `.smpart` file, with a small `.smpart.json` record of finished ranges, so it can resume after anything.
+- New relay links are published only once public DNS knows them, and the app falls back to Cloudflare/Google DNS when your ISP's resolver can't find one yet.
 - Transfers are plain HTTP (not encrypted) unless they go through the relay (HTTPS). Don't share anything you couldn't stand someone on the same network path seeing.
 
 ## Build from source
@@ -168,15 +197,23 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.0.5
+.\build.ps1 -Version 1.2.0
 ```
-Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.0.5\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.2.0\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.2.0 (2026-11-21)
+- New: built-in downloader on the Receive page. Paste a link, tick files, press Download. 8 parallel connections, folders kept, pause/resume, and it resumes after a dropped connection, closing the app or a crash. Paste the sender's new link and an interrupted download continues.
+- New: "Download with IDM" (when IDM is installed) and "Browser download" buttons.
+- New: "New link" button on every share. The old link and QR stop working at once.
+- New: red "New code" button for hosted networks, with a warning. Old members lose access and are told the code was replaced; retrying with an old code no longer counts toward the wrong-link block.
+- New: bookmarks for Share Network codes (icon next to the code box and on each joined network). Bookmarks stay after you leave and connect in one click.
+- Fix: relay links are shown only once they're live in public DNS, and ShareMile falls back to public DNS if your ISP's resolver can't find one yet ("site can't be reached" right after sharing).
+- Fix: the BDIX Transfer tab shows "Not checked yet" with a Check now button instead of a stuck "Checking…".
 v1.0.5 (2026-11-21)
 - Relay is now the default and first link for every share, and starts as soon as you share.
 - "Internet (direct)" is now "BDIX Transfer". Clicking it tests from the internet whether direct links reach you: shows [Real IP Not enabled] on CGNAT connections, or a port-forwarding guide if you have a real IP.

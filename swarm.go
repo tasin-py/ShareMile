@@ -79,7 +79,7 @@ var (
 	swarmMu  sync.RWMutex
 	dlClient = &http.Client{Transport: &http.Transport{
 		Proxy:               nil,
-		DialContext:         (&net.Dialer{Timeout: 6 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		DialContext:         dialWithDNSFallback(&net.Dialer{Timeout: 6 * time.Second, KeepAlive: 30 * time.Second}),
 		MaxIdleConnsPerHost: 16,
 		DisableCompression:  true,
 		WriteBufferSize:     256 << 10,
@@ -272,6 +272,10 @@ func handleNetwork(w http.ResponseWriter, r *http.Request) {
 	} else if j != nil {
 		key = j.key
 		h = nil
+	} else if isRetiredNet(parts[0]) {
+		// The host replaced this network's code: tell old members, without a strike.
+		http.Error(w, "code replaced", http.StatusGone)
+		return
 	} else {
 		addStrike(r)
 		http.NotFound(w, r)
@@ -546,6 +550,7 @@ func (j *JoinNet) connect() {
 		man  *Manifest
 	}
 	ch := make(chan res, len(cands))
+	var replaced atomic.Bool
 	for _, e := range cands {
 		go func(e string) {
 			resp, err := j.req(ctx, "GET", e, "/manifest", nil)
@@ -554,6 +559,9 @@ func (j *JoinNet) connect() {
 				return
 			}
 			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusGone {
+				replaced.Store(true)
+			}
 			var m Manifest
 			if resp.StatusCode != 200 || json.NewDecoder(resp.Body).Decode(&m) != nil {
 				ch <- res{}
@@ -580,6 +588,9 @@ func (j *JoinNet) connect() {
 	j.mu.Lock()
 	j.host, j.status = "", "offline"
 	j.err = "Can't reach the host. They may be offline, or their address changed (ask them for a fresh code)."
+	if replaced.Load() {
+		j.err = "The host replaced this network's secret code. Ask them for the new code and join with it."
+	}
 	j.mu.Unlock()
 }
 
@@ -642,7 +653,9 @@ func (j *JoinNet) refreshManifest() error {
 	}
 	j.mu.Lock()
 	j.man = &m
+	code := j.cfg.Code
 	j.mu.Unlock()
+	syncBookmark(j.id, m.Name, code)
 	return nil
 }
 

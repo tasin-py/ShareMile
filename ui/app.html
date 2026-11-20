@@ -59,10 +59,27 @@
           <button class="btn primary" id="rc-go">Open</button>
         </div>
       </div>
-      <div class="card">
-        <p><b>A link</b> opens in your browser. You'll see previews of the files and can download one, a few, or all of them as a ZIP. The sender's PC has to stay on with ShareMile running.</p>
-        <p><b>A secret code</b> joins that Share Network. Pick the files you want and they download straight into your download folder (Settings → Downloads), with resume and checks for damaged pieces.</p>
-        <p class="muted">The person you're receiving from doesn't need to do anything else. Links and QR codes also work on phones with no app at all.</p>
+      <div class="card" id="rc-pick" hidden>
+        <div class="share-title"><h3 id="rc-name"></h3><span class="muted tnum" id="rc-sum"></span></div>
+        <div class="row between wrap gap rc-tools">
+          <label class="check"><input type="checkbox" id="rc-all" checked><span></span>Select all</label>
+          <div class="pathin rc-filter"><input id="rc-filter" placeholder="Filter files…" spellcheck="false"></div>
+        </div>
+        <div class="rc-files" id="rc-files"></div>
+        <div class="row between wrap gap">
+          <span class="muted tnum" id="rc-selsum"></span>
+          <div class="row gap wrap">
+            <button class="btn" id="rc-browser" title="Download in your web browser instead">Browser download</button>
+            <button class="btn" id="rc-idm" hidden title="Send the selected files to Internet Download Manager">Download with IDM</button>
+            <button class="btn primary" id="rc-dl">Download</button>
+          </div>
+        </div>
+      </div>
+      <div id="rc-list" class="stack"></div>
+      <div class="card" id="rc-help">
+        <p><b>A link</b>: ShareMile lists the files. Tick what you want and press <b>Download</b>. Files go into your download folder (Settings → Downloads), keeping their folders, over several connections at once. Broken downloads resume where they stopped. You can also hand them to <b>IDM</b> or your <b>browser</b>.</p>
+        <p><b>A secret code</b> joins that Share Network.</p>
+        <p class="muted">People without the app can still open any link in a browser, on a phone or PC, and download from there.</p>
       </div>
     </section>
 
@@ -95,8 +112,13 @@
         <div class="card">
           <div class="row gap">
             <div class="pathin grow"><input id="jn-code" placeholder="Paste a secret code: SM-XXXXX-XXXXX-…" spellcheck="false" autocomplete="off"></div>
+            <button class="btn icon bm" id="jn-bm" title="Bookmark this code" aria-label="Bookmark this code"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg></button>
             <button class="btn primary" id="jn-join">Join</button>
           </div>
+        </div>
+        <div class="card" id="bm-card" hidden>
+          <h3>Bookmarks</h3>
+          <div id="bm-list" class="bm-list"></div>
         </div>
         <div id="jn-list" class="stack"></div>
       </div>

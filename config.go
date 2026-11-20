@@ -34,6 +34,8 @@ type Config struct {
 	AutoRelay   *bool           `json:"autoRelay"`
 	Networks    []*HostedNetCfg `json:"networks"`
 	Joined      []*JoinedNetCfg `json:"joined"`
+	Bookmarks   []*Bookmark     `json:"bookmarks"`
+	Retired     []string        `json:"retired,omitempty"` // ids of network codes this PC replaced
 }
 
 var (

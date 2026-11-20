@@ -262,6 +262,62 @@ func callRPC(method string, a rpcArgs) (any, error) {
 			return true, shellExec("open", a.Path, "")
 		}
 		return true, revealPath(a.Path)
+	case "refreshShare":
+		return true, refreshShareLink(a.ID)
+	case "renewHostNet":
+		id, err := renewHostedNet(a.ID)
+		if err != nil {
+			return nil, err
+		}
+		go syncExposure()
+		return id, nil
+	case "bookmark":
+		return toggleBookmark(a.Code, a.On)
+	case "recvOpen":
+		m, err := recvOpen(a.URL)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"manifest": m, "idm": idmPath() != ""}, nil
+	case "recvStart":
+		t, err := recvStart(a.Code, a.FileIDs)
+		if err != nil {
+			return nil, err
+		}
+		return t.ID, nil
+	case "recvIDM":
+		return recvIDM(a.Code, a.FileIDs)
+	case "recvBrowser":
+		return true, recvBrowser(a.Code, a.FileIDs)
+	case "recvPause":
+		if t := findRecv(a.ID); t != nil {
+			t.pause()
+		}
+		return true, nil
+	case "recvResume":
+		if t := findRecv(a.ID); t != nil {
+			t.start()
+		}
+		return true, nil
+	case "recvRemove":
+		removeRecv(a.ID, a.On) // on = also delete unfinished parts
+		return true, nil
+	case "recvOpenDir":
+		if t := findRecv(a.ID); t != nil {
+			os.MkdirAll(t.Dir, 0o755)
+			// Open the shared folder itself (or highlight the file) inside the download folder.
+			if len(t.Files) > 0 {
+				p := filepath.Join(t.Dir, cleanRel(strings.SplitN(t.Files[0].Rel, "/", 2)[0]))
+				if st, err := os.Stat(p); err == nil {
+					if st.IsDir() {
+						return true, shellExec("open", p, "")
+					}
+					return true, revealPath(p)
+				}
+			}
+			return true, shellExec("open", t.Dir, "")
+		}
+		return true, nil
 	case "bdixCheck":
 		startBDIXCheck()
 		return true, nil
@@ -441,13 +497,15 @@ func buildState() map[string]any {
 			have[id] = p != ""
 		}
 		seed := j.cfg.Seed
+		code := j.cfg.Code
+		bookmarked := bookmarkIndexLocked(j.id) >= 0
 		cfgMu.Unlock()
 		if name == "" {
 			name = "Network"
 		}
 		jo = append(jo, map[string]any{
 			"id": j.id, "name": name, "status": status, "err": errS, "files": files, "peers": peers,
-			"tasks": j.taskList(), "have": have, "seed": seed, "uploaded": j.bytes.Load(),
+			"tasks": j.taskList(), "have": have, "seed": seed, "uploaded": j.bytes.Load(), "code": code, "bookmarked": bookmarked,
 		})
 	}
 	fwMu.Lock()
@@ -461,7 +519,7 @@ func buildState() map[string]any {
 	cfgMu.Unlock()
 	return map[string]any{
 		"app": appName, "version": appVersion, "repo": "https://github.com/" + repoSlug,
-		"net": getNet(), "links": eps, "shares": so, "hosted": ho, "joined": jo,
+		"net": getNet(), "links": eps, "shares": so, "hosted": ho, "joined": jo, "receives": recvView(), "bookmarks": bookmarksView(),
 		"config":   map[string]any{"port": c.Port, "downloadDir": c.DownloadDir, "theme": c.Theme, "useUpnp": c.UseUPnP, "linkMode": c.LinkMode, "autoRelay": c.AutoRelay != nil && *c.AutoRelay},
 		"firewall": fw, "publicErr": pe, "listenPort": publicPort,
 	}

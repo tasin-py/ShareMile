@@ -73,7 +73,7 @@ func busy() bool {
 			}
 		}
 	}
-	return n > 0
+	return n > 0 || recvBusy()
 }
 
 func main() {
@@ -124,6 +124,7 @@ func main() {
 
 	go cleanupOldExe()
 	loadConfig()
+	loadRecv()
 	if port > 0 {
 		cfg.Port = port
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,6 +112,14 @@ func startRelay() {
 		}()
 		select {
 		case u := <-found:
+			// Publish the link only once public DNS knows the new address, so
+			// receivers' ISPs don't cache "does not exist" for it.
+			if h, err := url.Parse(u); err == nil {
+				waitPublicDNS(h.Hostname(), 25*time.Second)
+			}
+			if relayCmd != cmd {
+				return // stopped meanwhile
+			}
 			setRelay("on", u, "")
 		case <-time.After(40 * time.Second):
 			setRelay("error", "", "The relay didn't start in time. Check your internet connection.")

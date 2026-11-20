@@ -143,7 +143,7 @@ function renderShares(list) {
       c.innerHTML = `<div class="share">
         <div class="qr"><img alt="QR code"></div>
         <div class="share-body">
-          <div class="share-title"><h3></h3><button class="btn small danger" data-act="stop">Stop sharing</button></div>
+          <div class="share-title"><h3></h3><div class="row gap"><button class="btn small" data-act="renew" title="Make a new link. The current one stops working">New link</button><button class="btn small danger" data-act="stop">Stop sharing</button></div></div>
           <div class="seg"></div>
           <div class="link"><input readonly spellcheck="false"><button class="btn" data-act="copy">Copy link</button><button class="btn" data-act="open" title="Open in browser">Open</button></div>
           <div class="note"></div>
@@ -156,6 +156,10 @@ function renderShares(list) {
           <div class="recv" hidden></div>
         </div></div>`;
       $('[data-act=stop]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('stopShare', {id: s.id}); await refresh(); });
+      $('[data-act=renew]', c).onclick = e => {
+        if (!confirm('Make a new link for this share?\n\nThe current link (and QR code) stops working right away. Anyone who still needs the files will need the new link.')) return;
+        busyBtn(e.currentTarget, async () => { await rpc('refreshShare', {id: s.id}); toast('New link ready. Send it again'); await refresh(); });
+      };
       $('[data-act=copy]', c).onclick = () => copy($('.link input', c).value);
       $('[data-act=open]', c).onclick = () => rpc('openURL', {url: $('.link input', c).value});
       box.insertBefore(c, box.children[idx] || null);
@@ -187,8 +191,8 @@ function renderShares(list) {
       let url = cur ? cur.url : '', text = cur ? cur.note : '', status = '';
       if (isBdix && !bdixReady) {
         url = '';
-        status = {checking: 'Checking BDIX Transfer…', noRealIP: '[Real IP Not enabled]', needForward: '[Port forwarding needed]', firewall: '[Blocked by Windows Firewall]', error: '[Check failed]'}[n.bdix] || 'Checking BDIX Transfer…';
-        text = n.bdixMsg || '';
+        status = {checking: 'Checking BDIX Transfer…', noRealIP: '[Real IP Not enabled]', needForward: '[Port forwarding needed]', firewall: '[Blocked by Windows Firewall]', error: '[Check failed]'}[n.bdix] || '[Not checked yet]';
+        text = n.bdixMsg || 'Press Check now to test whether people on the internet can reach this PC directly (uses portchecker.io).';
       } else if (isBdix) {
         text = 'Reachable from the internet ✓ ' + cur.note;
       } else if (cur && !url) {
@@ -198,7 +202,7 @@ function renderShares(list) {
       inp.classList.toggle('status', !url);
       $('[data-act=copy]', c).disabled = !url;
       $('[data-act=open]', c).disabled = !url;
-      note.innerHTML = esc(text) + (isBdix && !['ready', 'checking'].includes(n.bdix) ? ' <button class="btn small" data-act="bdix">Check again</button>' : '');
+      note.innerHTML = esc(text) + (isBdix && !['ready', 'checking'].includes(n.bdix) ? ' <button class="btn small" data-act="bdix">' + (n.bdix ? 'Check again' : 'Check now') + '</button>' : '');
       const again = $('[data-act=bdix]', note);
       if (again) again.onclick = e => busyBtn(e.currentTarget, async () => { await rpc('bdixCheck'); await refresh(); });
       $('.qr', c).classList.toggle('off', !url);
@@ -243,6 +247,7 @@ function renderHosted(list) {
           <button class="btn primary small" data-act="copy">Copy code</button>
           <button class="btn small" data-act="pause"></button>
           <button class="btn small" data-act="rescan"><span class="spin" hidden></span>Rescan files</button>
+          <button class="btn small danger" data-act="renew" title="Replace the secret code. Everyone with the old code loses access">New code</button>
           <button class="btn small danger" data-act="del">Delete network</button>
         </div>
         <div class="stats" style="margin-top:12px">
@@ -255,6 +260,10 @@ function renderHosted(list) {
       $('[data-act=copy]', c).onclick = () => copy($('[data-f=code]', c).textContent);
       $('[data-act=pause]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('pauseHostNet', {id: h.id, on: !c._active}); await refresh(); });
       $('[data-act=rescan]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('rescanHostNet', {id: h.id}); toast('Files rescanned'); await refresh(); });
+      $('[data-act=renew]', c).onclick = e => {
+        if (!confirm('⚠ Make a new secret code?\n\nEveryone who has the current code, including members who already joined, will LOSE ACCESS to this network. Only people you send the new code to can connect again.\n\nContinue?')) return;
+        busyBtn(e.currentTarget, async () => { await rpc('renewHostNet', {id: c.dataset.id}); toast('New code ready. Send it to the members you want to keep'); await refresh(); });
+      };
       $('[data-act=del]', c).onclick = e => { if (confirm('Delete this network? Members will lose access and the code stops working.')) busyBtn(e.currentTarget, async () => { await rpc('removeHostNet', {id: h.id}); await refresh(); }); };
       box.insertBefore(c, box.children[idx] || null);
     }
@@ -290,12 +299,113 @@ $('#jn-join').onclick = e => busyBtn(e.currentTarget, async () => {
 $('#jn-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('#jn-join').click(); });
 
 // Receive page: one box for both links and network codes.
+let RC = null;            // opened manifest
+const rcSel = new Set();  // selected file ids
+const KIND_ICON = {image: '🖼', video: '🎬', audio: '🎵', pdf: '📕', text: '📄', archive: '🗜', doc: '📝', app: '⚙', file: '📄'};
+
+function rcRender() {
+  if (!RC) { $('#rc-pick').hidden = true; return; }
+  $('#rc-pick').hidden = false;
+  $('#rc-help').hidden = true;
+  $('#rc-name').textContent = RC.name;
+  $('#rc-sum').textContent = RC.files.length.toLocaleString() + (RC.files.length === 1 ? ' file · ' : ' files · ') + fmtBytes(RC.total);
+  const q = $('#rc-filter').value.trim().toLowerCase();
+  const shown = RC.files.filter(f => !q || f.rel.toLowerCase().includes(q)).slice(0, 3000);
+  $('#rc-files').innerHTML = shown.map(f => `<label class="rc-file"><input type="checkbox" data-id="${f.id}" ${rcSel.has(f.id) ? 'checked' : ''}><span class="ic">${KIND_ICON[f.kind] || '📄'}</span><span class="nm" title="${esc(f.rel)}">${esc(f.rel)}</span><span class="sz tnum">${fmtBytes(f.size)}</span></label>`).join('')
+    + (shown.length === 3000 ? '<div class="muted">Showing the first 3,000. Use the filter to find others.</div>' : '');
+  $$('#rc-files input').forEach(cb => cb.onchange = () => { cb.checked ? rcSel.add(+cb.dataset.id) : rcSel.delete(+cb.dataset.id); rcSum(); });
+  rcSum();
+}
+function rcSum() {
+  let n = 0, b = 0;
+  for (const f of RC.files) if (rcSel.has(f.id)) { n++; b += f.size; }
+  $('#rc-selsum').textContent = n ? `${n.toLocaleString()} selected · ${fmtBytes(b)}` : 'Nothing selected';
+  $('#rc-all').checked = n === RC.files.length;
+  ['#rc-dl', '#rc-idm', '#rc-browser'].forEach(s => $(s).disabled = !n);
+}
+$('#rc-all').onchange = e => { rcSel.clear(); if (e.target.checked) RC.files.forEach(f => rcSel.add(f.id)); rcRender(); };
+$('#rc-filter').oninput = () => rcRender();
+const rcIds = () => [...rcSel].map(String);
+$('#rc-dl').onclick = e => busyBtn(e.currentTarget, async () => {
+  await rpc('recvStart', {code: RC.token, fileIds: rcIds()});
+  toast('Downloading into ' + S.config.downloadDir);
+  RC = null; rcRender(); await refresh();
+});
+$('#rc-idm').onclick = e => busyBtn(e.currentTarget, async () => {
+  const n = await rpc('recvIDM', {code: RC.token, fileIds: rcIds()});
+  toast(`Sent ${n} file${n === 1 ? '' : 's'} to IDM`);
+});
+$('#rc-browser').onclick = e => busyBtn(e.currentTarget, async () => {
+  await rpc('recvBrowser', {code: RC.token, fileIds: rcIds()});
+  toast(rcSel.size === 1 ? 'Download started in your browser' : 'Opened in your browser. Pick files there, or use Download all');
+});
+
+function renderReceives(list) {
+  const box = $('#rc-list');
+  if (!RC) $('#rc-help').hidden = list.length > 0;
+  const ids = new Set(list.map(t => t.id));
+  $$('.rc-card', box).forEach(c => { if (!ids.has(c.dataset.id)) c.remove(); });
+  list.forEach((t, idx) => {
+    let c = $(`.rc-card[data-id="${t.id}"]`, box);
+    if (!c) {
+      c = document.createElement('div');
+      c.className = 'card rc-card';
+      c.dataset.id = t.id;
+      c.innerHTML = `<div class="share-title"><h3></h3><span class="pill" data-f="state"></span></div>
+        <div class="bar"><i></i></div>
+        <div class="row between wrap gap">
+          <span class="stats"><span><b data-f="got"></b> of <b data-f="total"></b></span><span>Files <b data-f="files"></b></span><span>Speed <b class="stat-speed" data-f="speed"></b></span><span data-f="eta"></span></span>
+          <span class="row gap wrap">
+            <button class="btn small" data-act="toggle"></button>
+            <button class="btn small" data-act="dir">Open folder</button>
+            <button class="btn small danger" data-act="del"></button>
+          </span>
+        </div>
+        <div class="warn" data-f="err" hidden></div>`;
+      $('[data-act=toggle]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc(c._state === 'downloading' ? 'recvPause' : 'recvResume', {id: t.id}); await refresh(); });
+      $('[data-act=dir]', c).onclick = () => rpc('recvOpenDir', {id: t.id});
+      $('[data-act=del]', c).onclick = e => {
+        const done = c._state === 'done';
+        if (!done && !confirm('Cancel this download and delete the unfinished parts?')) return;
+        busyBtn(e.currentTarget, async () => { await rpc('recvRemove', {id: t.id, on: !done}); await refresh(); });
+      };
+      box.insertBefore(c, box.children[idx] || null);
+    }
+    c._state = t.state;
+    const f = k => $(`[data-f="${k}"]`, c);
+    $('h3', c).textContent = t.name;
+    const st = {downloading: ['Downloading', 'ok'], paused: ['Paused', ''], done: ['Done ✓', 'ok'], error: ['Stopped', 'bad']}[t.state] || [t.state, ''];
+    f('state').textContent = st[0]; f('state').className = 'pill ' + st[1];
+    $('.bar i', c).style.width = (t.total ? Math.min(100, t.got / t.total * 100) : 100).toFixed(1) + '%';
+    f('got').textContent = fmtBytes(t.got); f('total').textContent = fmtBytes(t.total);
+    f('files').textContent = `${t.doneCount}/${t.count}`;
+    f('speed').textContent = fmtSpeed(t.state === 'downloading' ? t.speed : 0);
+    const left = t.total - t.got;
+    f('eta').textContent = t.state === 'downloading' && t.speed > 1024 && left > 0 ? 'About ' + fmtETA(left / t.speed) + ' left' : '';
+    $('[data-act=toggle]', c).hidden = t.state === 'done';
+    $('[data-act=toggle]', c).textContent = t.state === 'downloading' ? 'Pause' : 'Resume';
+    $('[data-act=del]', c).textContent = t.state === 'done' ? 'Remove from list' : 'Cancel';
+    f('err').hidden = !t.err; f('err').textContent = t.err || '';
+  });
+}
+function fmtETA(s) {
+  s = Math.round(s);
+  if (s < 60) return s + ' s';
+  if (s < 3600) return Math.round(s / 60) + ' min';
+  return Math.floor(s / 3600) + ' h ' + Math.round(s % 3600 / 60) + ' min';
+}
+
 $('#rc-go').onclick = e => busyBtn(e.currentTarget, async () => {
   const v = $('#rc-in').value.trim();
   if (!v) { toast('Paste a link or a code first', true); return; }
   if (/^https?:\/\//i.test(v)) {
-    await rpc('openURL', {url: v});
-    toast('Opened in your browser');
+    const r = await rpc('recvOpen', {url: v});
+    RC = r.manifest;
+    rcSel.clear(); RC.files.forEach(f => rcSel.add(f.id));
+    $('#rc-filter').value = '';
+    $('#rc-idm').hidden = !r.idm;
+    rcRender();
+    await refresh();
   } else if (/^SM-/i.test(v)) {
     await rpc('join', {code: v});
     toast('Joined. Connecting to the host…');
@@ -310,6 +420,47 @@ $('#rc-go').onclick = e => busyBtn(e.currentTarget, async () => {
 });
 $('#rc-in').addEventListener('keydown', e => { if (e.key === 'Enter') $('#rc-go').click(); });
 
+// ------------------------------------------------------------- bookmarks
+const BM_SVG = '<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>';
+async function setBookmark(code, on) {
+  await rpc('bookmark', {code, on});
+  toast(on ? 'Bookmarked. It stays here, ready to connect' : 'Bookmark removed');
+  await refresh();
+}
+function inputBookmarked() {
+  const v = $('#jn-code').value.trim();
+  return !!v && (S.bookmarks || []).some(b => b.code === v);
+}
+function syncBmButton() {
+  const on = S ? inputBookmarked() : false;
+  $('#jn-bm').classList.toggle('on', on);
+  $('#jn-bm').title = on ? 'Remove bookmark' : 'Bookmark this code';
+}
+$('#jn-code').addEventListener('input', syncBmButton);
+$('#jn-bm').onclick = e => {
+  const v = $('#jn-code').value.trim();
+  if (!v) { toast('Paste a code first, then bookmark it', true); return; }
+  busyBtn(e.currentTarget, async () => { await setBookmark(v, !inputBookmarked()); syncBmButton(); });
+};
+function renderBookmarks(list) {
+  $('#bm-card').hidden = !list.length;
+  const key = JSON.stringify(list);
+  const box = $('#bm-list');
+  if (box.dataset.k === key) return;
+  box.dataset.k = key;
+  box.innerHTML = list.map((b, i) => `<div class="bm-row">
+      <button class="btn icon bm on" data-i="${i}" data-act="unbm" title="Remove bookmark" aria-label="Remove bookmark">${BM_SVG}</button>
+      <div class="bm-name"><b>${esc(b.name)}</b><span class="muted">${esc(b.code.slice(0, 22))}…</span></div>
+      ${b.joined ? '<span class="pill ok">Joined</span>' : `<button class="btn small primary" data-i="${i}" data-act="connect">Connect</button>`}
+    </div>`).join('');
+  $$('[data-act=unbm]', box).forEach(btn => btn.onclick = () => setBookmark(list[+btn.dataset.i].code, false));
+  $$('[data-act=connect]', box).forEach(btn => btn.onclick = e => busyBtn(e.currentTarget, async () => {
+    await rpc('join', {code: list[+btn.dataset.i].code});
+    toast('Connecting to ' + list[+btn.dataset.i].name + '…');
+    await refresh();
+  }));
+}
+
 function renderJoined(list) {
   const box = $('#jn-list');
   const ids = new Set(list.map(j => j.id));
@@ -321,7 +472,7 @@ function renderJoined(list) {
       c = document.createElement('div');
       c.className = 'card jn-card';
       c.dataset.id = j.id;
-      c.innerHTML = `<div class="share-title"><h3></h3><div class="row gap"><span class="pill" data-f="status"></span><button class="btn small" data-act="reconnect">Reconnect</button><button class="btn small danger" data-act="leave">Leave</button></div></div>
+      c.innerHTML = `<div class="share-title"><div class="row gap"><button class="btn icon bm" data-act="bm" title="Bookmark" aria-label="Bookmark">${BM_SVG}</button><h3></h3></div><div class="row gap"><span class="pill" data-f="status"></span><button class="btn small" data-act="reconnect">Reconnect</button><button class="btn small danger" data-act="leave">Leave</button></div></div>
         <div class="stats" style="margin:8px 0 12px"><span>Other members <b data-f="peers"></b></span><span>You uploaded <b data-f="up"></b></span></div>
         <label class="check" style="margin-bottom:12px"><input type="checkbox" data-act="seed"><span></span>Share what I download with other members (faster for everyone)</label>
         <div class="warn" data-f="err" hidden></div>
@@ -338,6 +489,7 @@ function renderJoined(list) {
         <div class="tasks"></div>`;
       $('[data-act=leave]', c).onclick = e => { if (confirm('Leave this network?')) busyBtn(e.currentTarget, async () => { await rpc('leave', {id: j.id}); await refresh(); }); };
       $('[data-act=reconnect]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('reconnect', {id: j.id}); toast('Reconnecting…'); });
+      $('[data-act=bm]', c).onclick = e => busyBtn(e.currentTarget, async () => { await setBookmark(c._j.code, !c._j.bookmarked); });
       $('[data-act=seed]', c).onchange = e => rpc('setSeed', {id: j.id, on: e.target.checked});
       $('[data-act=search]', c).oninput = e => { jfilter[j.id] = e.target.value.toLowerCase(); c._fk = ''; renderJoined(S.joined); };
       $('[data-act=all]', c).onclick = () => { visibleFiles(c._j).forEach(f => jsel[j.id].add(f.id)); c._fk = ''; renderJoined(S.joined); };
@@ -357,6 +509,8 @@ function renderJoined(list) {
     c._j = j;
     const f = k => $(`[data-f="${k}"]`, c);
     $('h3', c).textContent = j.name;
+    $('[data-act=bm]', c).classList.toggle('on', !!j.bookmarked);
+    $('[data-act=bm]', c).title = j.bookmarked ? 'Remove bookmark' : 'Bookmark this network';
     const st = {online: ['Connected', 'ok'], connecting: ['Connecting…', ''], offline: ['Host offline', 'bad']}[j.status] || [j.status, ''];
     f('status').textContent = st[0];
     f('status').className = 'pill ' + st[1];
@@ -533,6 +687,9 @@ async function refresh() {
     renderShares(S.shares || []);
     renderHosted(S.hosted || []);
     renderJoined(S.joined || []);
+    renderReceives(S.receives || []);
+    renderBookmarks(S.bookmarks || []);
+    syncBmButton();
     renderSettings(S);
   } catch (e) { /* app closing */ }
 }
@@ -543,3 +700,12 @@ function loop() {
 }
 document.addEventListener('visibilitychange', loop);
 loop();
+
+// Deep links into the UI, e.g. #page=network&tab=join or #page=receive&open=<link>
+// (used for documentation screenshots).
+(function () {
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (p.get('page')) { const b = $(`[data-page="${p.get('page')}"]`); if (b) b.click(); }
+  if (p.get('tab')) { const b = $(`[data-tab="${p.get('tab')}"]`); if (b) b.click(); }
+  if (p.get('open')) { $('#rc-in').value = p.get('open'); setTimeout(() => $('#rc-go').click(), 300); }
+})();
