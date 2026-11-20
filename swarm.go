@@ -128,7 +128,7 @@ func selfEndpoints(includePublicGuess bool) []string {
 			eps = append(eps, hostPort(ip, publicPort))
 		}
 	}
-	if n.PublicIP != "" && (n.PublicOK || (includePublicGuess && !n.CGNAT)) {
+	if n.PublicIP != "" && (n.PublicOK || (includePublicGuess && n.RealIP != "no")) {
 		eps = append(eps, hostPort(n.PublicIP, publicPort))
 	}
 	if n.IPv6 != "" {

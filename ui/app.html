@@ -120,8 +120,8 @@
         <div class="field">
           <label>Preferred link</label>
           <select id="set-linkmode">
-            <option value="auto">Automatic (best available)</option>
-            <option value="public">Internet (direct, public IP)</option>
+            <option value="auto">Automatic (Relay first)</option>
+            <option value="public">BDIX Transfer (direct, needs a real IP)</option>
             <option value="ipv6">Internet IPv6 (direct)</option>
             <option value="lan">Same Wi-Fi / LAN only</option>
             <option value="relay">Relay (works anywhere)</option>
@@ -134,9 +134,9 @@
         </div>
         <label class="check"><input type="checkbox" id="set-upnp"><span></span>Open the port automatically with UPnP</label>
         <div style="height:10px"></div>
-        <label class="check"><input type="checkbox" id="set-autorelay"><span></span>Turn on the relay automatically when a direct internet link isn't possible</label>
+        <label class="check"><input type="checkbox" id="set-autorelay"><span></span>Start the relay automatically when I share (recommended)</label>
         <div class="field">
-          <label>Relay (for CGNAT connections)</label>
+          <label>Relay</label>
           <div class="row gap wrap"><button class="btn" id="relay-btn">Turn relay on</button><span class="muted" id="relay-state"></span></div>
           <small>Uses a free Cloudflare quick tunnel so links work even when your ISP blocks incoming connections. It is slower than a direct BDIX path. The helper (~20 MB) downloads the first time.</small>
         </div>

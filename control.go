@@ -262,6 +262,9 @@ func callRPC(method string, a rpcArgs) (any, error) {
 			return true, shellExec("open", a.Path, "")
 		}
 		return true, revealPath(a.Path)
+	case "bdixCheck":
+		startBDIXCheck()
+		return true, nil
 	case "openURL":
 		if !strings.HasPrefix(a.URL, "https://") && !strings.HasPrefix(a.URL, "http://") {
 			return nil, errors.New("bad url")
@@ -361,7 +364,11 @@ func buildState() map[string]any {
 	mkLinks := func(path string) ([]linkOut, string) {
 		var out []linkOut
 		for _, e := range eps {
-			out = append(out, linkOut{e.Kind, e.Label, e.Base + path, e.Note})
+			u := ""
+			if e.Base != "" {
+				u = e.Base + path
+			}
+			out = append(out, linkOut{e.Kind, e.Label, u, e.Note})
 		}
 		b := ""
 		if best != nil {

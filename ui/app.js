@@ -162,19 +162,47 @@ function renderShares(list) {
     }
     $('h3', c).textContent = s.name;
     const links = s.links || [];
-    let kind = shareSel[s.id];
-    let cur = links.find(l => l.kind === kind) || links.find(l => l.url === s.best) || links[0];
-    if (cur) shareSel[s.id] = cur.kind;
+    // Only the user's own click is remembered; otherwise Relay (first) is shown,
+    // or the link type picked in Settings → Preferred link.
+    const mode = S.config.linkMode;
+    let cur = links.find(l => l.kind === shareSel[s.id])
+      || (mode !== 'auto' && links.find(l => l.kind === mode))
+      || links[0];
     const seg = $('.seg', c);
-    const segKey = links.map(l => l.kind + l.url).join('|') + (cur && cur.url);
+    const n = S.net;
+    // BDIX Transfer only hands out its link once a test from outside passed.
+    const isBdix = cur && cur.kind === 'public';
+    const bdixReady = n.bdix === 'ready';
+    const segKey = links.map(l => l.kind + l.url + l.note).join('|') + (cur && cur.kind) + '|' + n.bdix + n.bdixMsg;
     if (seg.dataset.k !== segKey) {
       seg.dataset.k = segKey;
-      seg.innerHTML = links.map((l, i) => `<button data-i="${i}" class="${cur && l.url === cur.url ? 'on' : ''}">${esc(l.label)}</button>`).join('');
-      $$('button', seg).forEach(b => b.onclick = () => { shareSel[s.id] = links[+b.dataset.i].kind; seg.dataset.k = ''; renderShares(S.shares); });
-      const inp = $('.link input', c);
-      inp.value = cur ? cur.url : 'No network connection';
-      $('.note', c).textContent = cur ? cur.note : '';
-      if (cur) qrFor(cur.url).then(src => { $('.qr img', c).src = src; });
+      seg.innerHTML = links.map((l, i) => `<button data-i="${i}" class="${cur && l.kind === cur.kind ? 'on' : ''}">${esc(l.label)}</button>`).join('');
+      $$('button', seg).forEach(b => b.onclick = () => {
+        const k = links[+b.dataset.i].kind;
+        shareSel[s.id] = k;
+        if (k === 'public' && !['ready', 'checking'].includes(S.net.bdix)) { rpc('bdixCheck').then(refresh); S.net.bdix = 'checking'; S.net.bdixMsg = 'Testing from the internet whether people can reach this PC directly…'; }
+        seg.dataset.k = ''; renderShares(S.shares);
+      });
+      const inp = $('.link input', c), note = $('.note', c), img = $('.qr img', c);
+      let url = cur ? cur.url : '', text = cur ? cur.note : '', status = '';
+      if (isBdix && !bdixReady) {
+        url = '';
+        status = {checking: 'Checking BDIX Transfer…', noRealIP: '[Real IP Not enabled]', needForward: '[Port forwarding needed]', firewall: '[Blocked by Windows Firewall]', error: '[Check failed]'}[n.bdix] || 'Checking BDIX Transfer…';
+        text = n.bdixMsg || '';
+      } else if (isBdix) {
+        text = 'Reachable from the internet ✓ ' + cur.note;
+      } else if (cur && !url) {
+        status = cur.kind === 'relay' ? 'Starting the relay…' : 'Not available';
+      }
+      inp.value = url || status || (cur ? '' : 'No network connection');
+      inp.classList.toggle('status', !url);
+      $('[data-act=copy]', c).disabled = !url;
+      $('[data-act=open]', c).disabled = !url;
+      note.innerHTML = esc(text) + (isBdix && !['ready', 'checking'].includes(n.bdix) ? ' <button class="btn small" data-act="bdix">Check again</button>' : '');
+      const again = $('[data-act=bdix]', note);
+      if (again) again.onclick = e => busyBtn(e.currentTarget, async () => { await rpc('bdixCheck'); await refresh(); });
+      $('.qr', c).classList.toggle('off', !url);
+      if (url) qrFor(url).then(src => { img.src = src; }); else img.removeAttribute('src');
     }
     const f = k => $(`[data-f="${k}"]`, c);
     f('count').textContent = s.count.toLocaleString();
@@ -442,17 +470,16 @@ function renderSettings(s) {
     ['Public IP', n.publicIP || (n.checked ? 'Not detected' : 'Checking…')],
     ['IPv6', n.ipv6 || 'None'],
     ['Router WAN IP', n.routerWAN || '-'],
+    ['Real IP', {yes: 'Yes ✓ (BDIX Transfer possible)', no: 'No Real IP Found', unknown: 'Not known yet'}[n.realIP] || 'Not known yet'],
     ['UPnP', upnp],
     ['Listening on', 'TCP ' + s.listenPort],
   ].map(([k, v]) => `<div>${k}</div><div>${esc(v)}</div>`).join('');
   const warn = [];
-  if (s.publicErr) warn.push(s.publicErr);
-  if (n.doubleNAT) warn.push('Two routers are chained (for example a mesh router behind your ISP\'s modem/ONU). Your router opened the port, but the modem in front of it blocks incoming links, so ShareMile uses the Relay link instead. For full-speed direct links, forward TCP port ' + s.listenPort + ' on the ISP modem to your router, or put the modem in bridge mode.');
-  else if (n.cgnat) warn.push('Your ISP uses CGNAT (shared public IP), so direct internet links won\'t open from outside. Use the LAN link, IPv6 if available, or turn on the relay. You can also ask your ISP for a real/public IP, which most BD ISPs offer.');
-  else if (n.checked && n.publicIP && !n.publicOK) warn.push('The internet link may not open from outside until the port is open. Turn on UPnP in your router, or forward TCP port ' + s.listenPort + ' to ' + ((n.lanIPs || [])[0] || 'this PC') + '.');
-  if (n.upnpErr && n.upnp !== 'mapped') warn.push(n.upnpErr);
+  if (s.publicErr) warn.push(esc(s.publicErr));
+  if (n.realIP === 'no') warn.push('<b>No Real IP Found</b><br>' + esc('Your links use the Relay. To enable BDIX Transfer, ask your ISP for a real IP.'));
+  else if (n.bdix === 'needForward') warn.push('<b>Port forwarding needed</b><br>' + esc(n.bdixMsg));
   $('#net-warn').hidden = !warn.length;
-  $('#net-warn').innerHTML = warn.map(esc).join('<br>');
+  $('#net-warn').innerHTML = warn.join('<br>');
   $('#fw-state').textContent = s.firewall === 'allowed' ? 'Firewall rule present ✓' : s.firewall === 'missing' ? 'No firewall rule yet' : '';
   if (document.activeElement !== $('#set-port')) $('#set-port').value = c.port;
   $('#set-linkmode').value = c.linkMode;

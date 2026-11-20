@@ -56,13 +56,15 @@ It has two modes:
 ## Features
 
 - **Pick files or folders**, or paste a path. ShareMile scans them and shows the count and size before you start.
-- **Link + QR code + copy button** for every share. Choose between Internet, IPv6, LAN or Relay links.
+- **Link + QR code + copy button** for every share. **Relay** is the default (works on any connection); **BDIX Transfer**, IPv6 and LAN links sit next to it.
 - **A browser page that needs no app**: thumbnails, folder browsing, search, image/video/audio/PDF/text preview, per-file download, folder ZIP, "Download all", and multi-select ZIP. It works on phones too.
+- **Link previews**: paste a link in Messenger, WhatsApp, Telegram or Discord and it shows a card with the share's name and size.
+- **BDIX Transfer check**: one click tests from the internet whether direct links can reach you. It tells you plainly if your ISP hasn't given you a real IP, or exactly what to forward in your router if it has.
 - **Full-speed transfers**: no relay in the direct path, big socket buffers, and HTTP range support, so IDM, ADM and browsers can resume and use multiple connections.
 - **Works across the internet**:
   - opens your router port automatically with **UPnP**
   - uses **IPv6** when your ISP provides it
-  - detects **CGNAT** and **double NAT** (a mesh router behind the ISP modem) and, if a direct link can't work, turns on a free **Cloudflare relay** automatically so links still open from any country
+  - starts a free **Cloudflare relay** automatically when you share, so links open from any country even without a real IP (CGNAT)
 - **Share Network (swarm)**: a private group under a secret code. Downloads pull 4 MB pieces from the host *and* other members in parallel. SHA-256 verification means a member can't send you a corrupt or fake file. Interrupted downloads resume where they stopped.
 - **Receive page**: paste any ShareMile link or secret code and it opens or joins for you.
 - **Files back to you**: let people drop files back to you from the share page.
@@ -111,12 +113,12 @@ Open **Receive** in the app and paste what you were sent. A link opens in your b
 ### Which link should I send?
 | Link | When it works | Speed |
 |---|---|---|
-| **Internet (direct)** | The receiver is anywhere and your router port is open (UPnP did it, or you forwarded it) | Full line speed, BDIX speed inside BD |
+| **Relay** *(default)* | Always, on any connection | Depends on Cloudflare, usually tens of Mbit/s |
+| **BDIX Transfer** | You have a **real IP** and the port is open (UPnP or a manual forward). Click the tab to test it | Full line speed, BDIX speed inside BD |
 | **Internet IPv6** | Both sides have IPv6 | Full line speed |
 | **Same Wi-Fi / LAN** | Only on your local network | Fastest |
-| **Relay** | Always, even behind CGNAT or double NAT | Depends on Cloudflare, usually tens of Mbit/s |
 
-*Automatic* (the default) picks the best one for you. If your ISP gives you a CGNAT address, ask them for a real public IP (most BD ISPs offer one) to get direct BDIX-speed links.
+Clicking **BDIX Transfer** tests your connection from the internet (via [portchecker.io](https://portchecker.io), which only sees your public IP and the port number). It shows **[Real IP Not enabled]** if your ISP shares one IP between customers (CGNAT); then ask your ISP for a real IP (most BD ISPs offer one). If you do have a real IP, it shows exactly which port to forward.
 
 > **Testing it yourself?** Open the link on your phone with **Wi-Fi off** (mobile data). Many routers can't open your own public IP from inside your own network, even when it works for everyone outside.
 
@@ -166,15 +168,22 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.0.4
+.\build.ps1 -Version 1.0.5
 ```
-Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.0.4\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.0.5\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.0.5 (2026-11-21)
+- Relay is now the default and first link for every share, and starts as soon as you share.
+- "Internet (direct)" is now "BDIX Transfer". Clicking it tests from the internet whether direct links reach you: shows [Real IP Not enabled] on CGNAT connections, or a port-forwarding guide if you have a real IP.
+- Settings: a short "No Real IP Found" notice replaces the long warnings, plus a Real IP row.
+- Link previews: pasted links show the share's name, size and a ShareMile image in Messenger, WhatsApp, Telegram, Discord and more. Preview bots don't count as visitors.
+- The receiver page says "Secure relay" instead of "Direct transfer" when opened through the relay.
+
 v1.0.4 (2026-11-21)
 - Installer: removed the "Pin to taskbar" and "Pin to Start" options. ShareMile is still listed in the Start menu, and you can pin it yourself with right-click.
 

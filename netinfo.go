@@ -20,9 +20,10 @@ type NetState struct {
 	RouterWAN  string   `json:"routerWAN"`
 	UPnP       string   `json:"upnp"` // off|searching|mapped|failed|none
 	UPnPErr    string   `json:"upnpErr"`
-	CGNAT      bool     `json:"cgnat"`
-	DoubleNAT  bool     `json:"doubleNAT"`
+	RealIP     string   `json:"realIP"` // yes|no|unknown: does this connection have a real (non-CGNAT) public IP?
 	PublicOK   bool     `json:"publicOK"`
+	BDIX       string   `json:"bdix"`    // ""|checking|ready|noRealIP|needForward|firewall|error
+	BDIXMsg    string   `json:"bdixMsg"` // explanation / guide for the BDIX Transfer tab
 	Checked    bool     `json:"checked"`
 	RelayURL   string   `json:"relayURL"`
 	RelayState string   `json:"relayState"` // off|starting|on|error|missing|downloading
@@ -143,7 +144,10 @@ func needsInternet() bool {
 
 // syncExposure opens or closes the router port (and the auto relay) to match
 // what is currently shared. Call it whenever shares start or stop.
-func syncExposure() { refreshNetwork() }
+func syncExposure() {
+	maybeAutoRelay() // start (or stop) the relay right away; it doesn't depend on the checks below
+	refreshNetwork()
+}
 
 func refreshNetwork() {
 	refreshMu.Lock()
@@ -169,6 +173,24 @@ func refreshNetwork() {
 	}
 
 	var wg sync.WaitGroup
+	routerAnswered := false
+	if useUPnP && !want {
+		// Not sharing: don't open anything, just ask the router which address it holds.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+			defer cancel()
+			cs := gatewayClients(ctx)
+			routerAnswered = len(cs) > 0
+			if len(cs) > 0 {
+				wan, _ := cs[0].GetExternalIPAddress()
+				netMu.Lock()
+				netState.RouterWAN = wan
+				netMu.Unlock()
+			}
+		}()
+	}
 	var pub string
 	wg.Add(1)
 	go func() {
@@ -185,28 +207,40 @@ func refreshNetwork() {
 	wg.Wait()
 
 	netMu.Lock()
+	if pub != netState.PublicIP {
+		netState.BDIX, netState.BDIXMsg = "", "" // new address: the old check no longer applies
+	}
 	netState.PublicIP = pub
 	netState.Checked = true
+	if netState.UPnP == "mapped" || netState.UPnP == "failed" {
+		routerAnswered = true
+	}
+	// Real IP = the router itself holds the public address. If it holds a
+	// private/shared one (or none), the ISP is doing NAT (CGNAT) and nobody
+	// outside can connect in, whatever is forwarded at home.
 	wan := net.ParseIP(netState.RouterWAN)
-	netState.CGNAT = false
-	netState.DoubleNAT = false
-	if netState.UPnP == "mapped" && wan == nil {
-		// The router opened the port but doesn't know its own public address:
-		// another router (often the ISP's modem/ONU) sits in front of it and
-		// will refuse incoming connections.
-		netState.DoubleNAT = true
+	switch {
+	case pub == "":
+		netState.RealIP = "unknown"
+	case wan != nil && !isCGNAT(wan) && wan.String() == pub:
+		netState.RealIP = "yes"
+	case wan != nil || routerAnswered:
+		netState.RealIP = "no"
+	default:
+		netState.RealIP = "unknown"
 	}
-	if wan != nil && (isCGNAT(wan) || (pub != "" && wan.String() != pub)) {
-		netState.CGNAT = true
+	// An actual test from outside beats any guess.
+	if probe.ip == pub && probe.real != "" {
+		netState.RealIP = probe.real
 	}
-	// Only trust the direct link when the router itself holds the public IP.
-	netState.PublicOK = pub != "" && netState.UPnP == "mapped" && wan != nil && wan.String() == pub
+	netState.PublicOK = pub != "" && netState.UPnP == "mapped" && netState.RealIP == "yes"
 	netMu.Unlock()
 	maybeAutoRelay()
 }
 
-// maybeAutoRelay starts the relay when something is being shared but this PC
-// can't be reached directly from the internet (CGNAT, no UPnP, ...).
+// maybeAutoRelay keeps the relay running while something is shared. The relay
+// link is the default because it works on every connection (CGNAT included);
+// BDIX Transfer (direct) is offered next to it when the connection allows.
 func maybeAutoRelay() {
 	cfgMu.Lock()
 	auto := cfg.AutoRelay != nil && *cfg.AutoRelay
@@ -217,30 +251,22 @@ func maybeAutoRelay() {
 		stopRelay() // nothing shared any more: close the auto-started tunnel too
 		return
 	}
-	if !auto || !busy || !n.Checked || n.PublicOK || n.RelayState != "off" {
+	if !auto || !busy || n.RelayState != "off" {
 		return
 	}
 	startRelay()
 	relayAuto = true
 }
 
-func mapUPnP(lanIP string, port uint16) {
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-	set := func(state, e, wan string) {
-		netMu.Lock()
-		netState.UPnP, netState.UPnPErr = state, e
-		if wan != "" {
-			netState.RouterWAN = wan
-		}
-		netMu.Unlock()
-	}
-	type client interface {
-		AddPortMapping(string, uint16, string, uint16, string, bool, string, uint32) error
-		DeletePortMapping(string, uint16, string) error
-		GetExternalIPAddress() (string, error)
-	}
-	var clients []client
+type gwClient interface {
+	AddPortMapping(string, uint16, string, uint16, string, bool, string, uint32) error
+	DeletePortMapping(string, uint16, string) error
+	GetExternalIPAddress() (string, error)
+}
+
+// gatewayClients finds the router's UPnP services.
+func gatewayClients(ctx context.Context) []gwClient {
+	var clients []gwClient
 	if cs, _, err := internetgateway2.NewWANIPConnection2ClientsCtx(ctx); err == nil {
 		for _, c := range cs {
 			clients = append(clients, c)
@@ -256,27 +282,37 @@ func mapUPnP(lanIP string, port uint16) {
 			clients = append(clients, c)
 		}
 	}
+	return clients
+}
+
+func mapUPnP(lanIP string, port uint16) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	set := func(state, e string) {
+		netMu.Lock()
+		netState.UPnP, netState.UPnPErr = state, e
+		netMu.Unlock()
+	}
+	clients := gatewayClients(ctx)
 	if len(clients) == 0 {
-		set("none", "Router did not answer UPnP. Enable UPnP on the router or forward the port manually.", "")
+		set("none", "Router did not answer UPnP. Enable UPnP on the router or forward the port manually.")
 		return
 	}
 	var lastErr error
 	for _, c := range clients {
 		wan, _ := c.GetExternalIPAddress()
+		netMu.Lock()
+		netState.RouterWAN = wan
+		netMu.Unlock()
 		err := c.AddPortMapping("", port, "TCP", port, lanIP, true, "ShareMile", 3600) // short lease: a crash can't leave it open for long
 		if err == nil {
 			upnpClient, upnpPort = c, port
-			set("mapped", "", wan)
+			set("mapped", "")
 			return
 		}
 		lastErr = err
-		if wan != "" {
-			netMu.Lock()
-			netState.RouterWAN = wan
-			netMu.Unlock()
-		}
 	}
-	set("failed", "Router refused the port mapping: "+lastErr.Error(), "")
+	set("failed", "Router refused the port mapping: "+lastErr.Error())
 }
 
 func unmapUPnP() {
@@ -308,30 +344,30 @@ func hostPort(ip string, port int) string {
 	return net.JoinHostPort(ip, itoa(port))
 }
 
+// endpoints lists the links offered for a share, in display order:
+// Relay (default, works everywhere), BDIX Transfer (direct), IPv6, LAN.
+// A link with an empty Base isn't usable yet (relay starting, etc.).
 func endpoints() []Endpoint {
 	n := getNet()
 	var eps []Endpoint
+	relayNote := "Works for anyone, anywhere, even when your ISP blocks incoming connections. Encrypted (HTTPS). Files stream from your PC through Cloudflare; nothing is stored there."
+	switch {
+	case n.RelayURL != "":
+		eps = append(eps, Endpoint{"relay", "Relay", n.RelayURL, relayNote})
+	case n.RelayState == "starting" || n.RelayState == "downloading":
+		eps = append(eps, Endpoint{"relay", "Relay", "", "Starting the relay. This takes a few seconds…"})
+	case n.RelayState == "error":
+		eps = append(eps, Endpoint{"relay", "Relay", "", n.RelayErr + " Turn it on again in Settings → Relay."})
+	}
 	if n.PublicIP != "" {
-		note := "Direct over the internet. Full speed, and BDIX speed when both sides use BDIX-connected ISPs."
-		if !n.PublicOK {
-			if n.DoubleNAT {
-				note = "Two routers are chained (for example a mesh router behind the ISP modem), so this link won't open from outside. Use the Relay link, or forward TCP port " + itoa(publicPort) + " on the ISP modem too."
-			} else if n.CGNAT {
-				note = "Your ISP puts you behind CGNAT, so this link probably won't open from outside. Use Local, IPv6 or Relay."
-			} else {
-				note = "The router port isn't confirmed open. Turn on UPnP or forward TCP port " + itoa(publicPort) + " to " + firstOr(n.LanIPs, "this PC") + "."
-			}
-		}
-		eps = append(eps, Endpoint{"public", "Internet (direct)", "http://" + hostPort(n.PublicIP, publicPort), note})
+		eps = append(eps, Endpoint{"public", "BDIX Transfer", "http://" + hostPort(n.PublicIP, publicPort),
+			"Direct from your PC at full speed, and BDIX speed for receivers on BD ISPs. Plain HTTP, not encrypted."})
 	}
 	if n.IPv6 != "" {
 		eps = append(eps, Endpoint{"ipv6", "Internet IPv6 (direct)", "http://" + hostPort(n.IPv6, publicPort), "Direct over IPv6. Works if the receiver's ISP also has IPv6."})
 	}
 	for _, ip := range n.LanIPs {
 		eps = append(eps, Endpoint{"lan", "Same Wi-Fi / LAN", "http://" + hostPort(ip, publicPort), "Fastest. Only for devices on the same network as you."})
-	}
-	if n.RelayURL != "" {
-		eps = append(eps, Endpoint{"relay", "Relay (works anywhere)", n.RelayURL, "Goes through a Cloudflare tunnel. Works behind any NAT, but it isn't a direct BDIX path."})
 	}
 	return eps
 }
@@ -344,11 +380,12 @@ func firstOr(l []string, d string) string {
 }
 
 // bestEndpoint picks the preferred link according to the configured mode.
+// Automatic = Relay first (it always works), then the rest in order.
 func bestEndpoint(eps []Endpoint) *Endpoint {
 	mode := cfg.LinkMode
 	pick := func(kind string) *Endpoint {
 		for i := range eps {
-			if eps[i].Kind == kind {
+			if eps[i].Kind == kind && eps[i].Base != "" {
 				return &eps[i]
 			}
 		}
@@ -359,26 +396,13 @@ func bestEndpoint(eps []Endpoint) *Endpoint {
 			return e
 		}
 	}
-	// Internet-first: receivers are usually on other networks, even other countries.
-	n := getNet()
-	if n.PublicOK {
-		if e := pick("public"); e != nil {
+	for _, k := range []string{"relay", "public", "ipv6", "lan"} {
+		if e := pick(k); e != nil {
+			if k == "public" && !getNet().PublicOK {
+				continue
+			}
 			return e
 		}
-	}
-	if e := pick("relay"); e != nil {
-		return e
-	}
-	if !n.CGNAT && !n.DoubleNAT {
-		if e := pick("public"); e != nil {
-			return e
-		}
-	}
-	if e := pick("ipv6"); e != nil {
-		return e
-	}
-	if e := pick("lan"); e != nil {
-		return e
 	}
 	if len(eps) > 0 {
 		return &eps[0]

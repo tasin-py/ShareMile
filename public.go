@@ -219,11 +219,12 @@ func handleShare(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, r.URL.Path+"/", http.StatusFound)
 			return
 		}
-		s.hits.Add(1)
-		b, _ := webFS.ReadFile("web/share.html")
+		if !isPreviewBot(r) {
+			s.hits.Add(1)
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		w.Write(bytes.ReplaceAll(b, []byte("{{VERSION}}"), []byte(appVersion)))
+		w.Write([]byte(sharePage(r, s)))
 		return
 	}
 	switch parts[1] {

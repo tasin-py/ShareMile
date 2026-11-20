@@ -87,6 +87,9 @@ small{color:var(--muted);display:block;margin-top:6px;font-size:12px}
 .share{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start}
 .qr{width:168px;height:168px;border-radius:12px;background:#fff;padding:8px;display:grid;place-items:center}
 .qr img{width:100%;height:100%;image-rendering:pixelated}
+.qr.off{background:var(--card2);border:1px dashed var(--line)}
+.qr.off img{visibility:hidden}
+.link input.status{font-family:inherit;font-weight:600;color:var(--acc)}
 .share-body{min-width:0;display:flex;flex-direction:column;gap:10px}
 .share-title{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap}
 .share-title h3{margin:0;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
