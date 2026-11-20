@@ -12,6 +12,7 @@
     <div class="brand"><img src="icon.png" alt=""><span>ShareMile</span></div>
     <nav>
       <button class="nav on" data-page="quick"><svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg><span>Quick Share</span></button>
+      <button class="nav" data-page="receive"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Receive</span></button>
       <button class="nav" data-page="network"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 11l7.6-3.8M8.2 13l7.6 3.8"/></svg><span>Network</span></button>
       <button class="nav" data-page="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><span>Settings</span></button>
       <button class="nav" data-page="about"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg><span>About</span></button>
@@ -44,6 +45,25 @@
       </div>
       <div id="qs-list" class="stack"></div>
       <div class="empty" id="qs-empty">No active shares yet.</div>
+    </section>
+
+    <!-- RECEIVE -->
+    <section class="page" id="page-receive">
+      <header class="ph">
+        <h1>Receive</h1>
+        <p>Got a ShareMile link or a secret code from someone? Paste it here.</p>
+      </header>
+      <div class="card">
+        <div class="row gap">
+          <div class="pathin grow"><input id="rc-in" placeholder="Paste a link (http://…/s/…) or a code (SM-…)" spellcheck="false" autocomplete="off"></div>
+          <button class="btn primary" id="rc-go">Open</button>
+        </div>
+      </div>
+      <div class="card">
+        <p><b>A link</b> opens in your browser. You'll see previews of the files and can download one, a few, or all of them as a ZIP. The sender's PC has to stay on with ShareMile running.</p>
+        <p><b>A secret code</b> joins that Share Network. Pick the files you want and they download straight into your download folder (Settings → Downloads), with resume and checks for damaged pieces.</p>
+        <p class="muted">The person you're receiving from doesn't need to do anything else. Links and QR codes also work on phones with no app at all.</p>
+      </div>
     </section>
 
     <!-- NETWORK -->

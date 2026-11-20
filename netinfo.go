@@ -21,6 +21,7 @@ type NetState struct {
 	UPnP       string   `json:"upnp"` // off|searching|mapped|failed|none
 	UPnPErr    string   `json:"upnpErr"`
 	CGNAT      bool     `json:"cgnat"`
+	DoubleNAT  bool     `json:"doubleNAT"`
 	PublicOK   bool     `json:"publicOK"`
 	Checked    bool     `json:"checked"`
 	RelayURL   string   `json:"relayURL"`
@@ -188,10 +189,18 @@ func refreshNetwork() {
 	netState.Checked = true
 	wan := net.ParseIP(netState.RouterWAN)
 	netState.CGNAT = false
+	netState.DoubleNAT = false
+	if netState.UPnP == "mapped" && wan == nil {
+		// The router opened the port but doesn't know its own public address:
+		// another router (often the ISP's modem/ONU) sits in front of it and
+		// will refuse incoming connections.
+		netState.DoubleNAT = true
+	}
 	if wan != nil && (isCGNAT(wan) || (pub != "" && wan.String() != pub)) {
 		netState.CGNAT = true
 	}
-	netState.PublicOK = pub != "" && netState.UPnP == "mapped" && !netState.CGNAT
+	// Only trust the direct link when the router itself holds the public IP.
+	netState.PublicOK = pub != "" && netState.UPnP == "mapped" && wan != nil && wan.String() == pub
 	netMu.Unlock()
 	maybeAutoRelay()
 }
@@ -305,7 +314,9 @@ func endpoints() []Endpoint {
 	if n.PublicIP != "" {
 		note := "Direct over the internet. Full speed, and BDIX speed when both sides use BDIX-connected ISPs."
 		if !n.PublicOK {
-			if n.CGNAT {
+			if n.DoubleNAT {
+				note = "Two routers are chained (for example a mesh router behind the ISP modem), so this link won't open from outside. Use the Relay link, or forward TCP port " + itoa(publicPort) + " on the ISP modem too."
+			} else if n.CGNAT {
 				note = "Your ISP puts you behind CGNAT, so this link probably won't open from outside. Use Local, IPv6 or Relay."
 			} else {
 				note = "The router port isn't confirmed open. Turn on UPnP or forward TCP port " + itoa(publicPort) + " to " + firstOr(n.LanIPs, "this PC") + "."
@@ -358,7 +369,7 @@ func bestEndpoint(eps []Endpoint) *Endpoint {
 	if e := pick("relay"); e != nil {
 		return e
 	}
-	if !n.CGNAT {
+	if !n.CGNAT && !n.DoubleNAT {
 		if e := pick("public"); e != nil {
 			return e
 		}

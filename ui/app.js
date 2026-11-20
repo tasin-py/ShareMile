@@ -261,6 +261,27 @@ $('#jn-join').onclick = e => busyBtn(e.currentTarget, async () => {
 });
 $('#jn-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('#jn-join').click(); });
 
+// Receive page: one box for both links and network codes.
+$('#rc-go').onclick = e => busyBtn(e.currentTarget, async () => {
+  const v = $('#rc-in').value.trim();
+  if (!v) { toast('Paste a link or a code first', true); return; }
+  if (/^https?:\/\//i.test(v)) {
+    await rpc('openURL', {url: v});
+    toast('Opened in your browser');
+  } else if (/^SM-/i.test(v)) {
+    await rpc('join', {code: v});
+    toast('Joined. Connecting to the host…');
+    $('[data-page=network]').click();
+    $('[data-tab=join]').click();
+    await refresh();
+  } else {
+    toast('That doesn\'t look like a ShareMile link or code', true);
+    return;
+  }
+  $('#rc-in').value = '';
+});
+$('#rc-in').addEventListener('keydown', e => { if (e.key === 'Enter') $('#rc-go').click(); });
+
 function renderJoined(list) {
   const box = $('#jn-list');
   const ids = new Set(list.map(j => j.id));
@@ -426,7 +447,8 @@ function renderSettings(s) {
   ].map(([k, v]) => `<div>${k}</div><div>${esc(v)}</div>`).join('');
   const warn = [];
   if (s.publicErr) warn.push(s.publicErr);
-  if (n.cgnat) warn.push('Your ISP uses CGNAT (shared public IP), so direct internet links won\'t open from outside. Use the LAN link, IPv6 if available, or turn on the relay. You can also ask your ISP for a real/public IP, which most BD ISPs offer.');
+  if (n.doubleNAT) warn.push('Two routers are chained (for example a mesh router behind your ISP\'s modem/ONU). Your router opened the port, but the modem in front of it blocks incoming links, so ShareMile uses the Relay link instead. For full-speed direct links, forward TCP port ' + s.listenPort + ' on the ISP modem to your router, or put the modem in bridge mode.');
+  else if (n.cgnat) warn.push('Your ISP uses CGNAT (shared public IP), so direct internet links won\'t open from outside. Use the LAN link, IPv6 if available, or turn on the relay. You can also ask your ISP for a real/public IP, which most BD ISPs offer.');
   else if (n.checked && n.publicIP && !n.publicOK) warn.push('The internet link may not open from outside until the port is open. Turn on UPnP in your router, or forward TCP port ' + s.listenPort + ' to ' + ((n.lanIPs || [])[0] || 'this PC') + '.');
   if (n.upnpErr && n.upnp !== 'mapped') warn.push(n.upnpErr);
   $('#net-warn').hidden = !warn.length;

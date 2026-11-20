@@ -62,9 +62,10 @@ It has two modes:
 - **Works across the internet**:
   - opens your router port automatically with **UPnP**
   - uses **IPv6** when your ISP provides it
-  - detects **CGNAT** and, if a direct link can't work, turns on a free **Cloudflare relay** automatically so links still open from any country
+  - detects **CGNAT** and **double NAT** (a mesh router behind the ISP modem) and, if a direct link can't work, turns on a free **Cloudflare relay** automatically so links still open from any country
 - **Share Network (swarm)**: a private group under a secret code. Downloads pull 4 MB pieces from the host *and* other members in parallel. SHA-256 verification means a member can't send you a corrupt or fake file. Interrupted downloads resume where they stopped.
-- **Receive files**: let people drop files back to you from the share page.
+- **Receive page**: paste any ShareMile link or secret code and it opens or joins for you.
+- **Files back to you**: let people drop files back to you from the share page.
 - **Live stats**: visitors, bytes sent, live speed.
 - **7 themes**: Pitch Black, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper. Text stays readable in all of them.
 - **One-click updates** from the About page, plus Buy Me a Coffee.
@@ -96,6 +97,9 @@ Prefer no installer? Grab the **[portable ShareMile.exe](https://github.com/tasi
   <img src="docs/screenshots/web-mobile.png" alt="Receiver page on a phone" width="22%">
 </p>
 
+### Receive files
+Open **Receive** in the app and paste what you were sent. A link opens in your browser (no app needed for that; phones work too). A secret code (`SM-…`) joins that Share Network.
+
 ### Share a library with a group (Share Network)
 1. **Network → Host a network**: name it, add files/folders, then **Create network**.
 2. Send members the **secret code**.
@@ -112,9 +116,11 @@ Prefer no installer? Grab the **[portable ShareMile.exe](https://github.com/tasi
 | **Internet (direct)** | The receiver is anywhere and your router port is open (UPnP did it, or you forwarded it) | Full line speed, BDIX speed inside BD |
 | **Internet IPv6** | Both sides have IPv6 | Full line speed |
 | **Same Wi-Fi / LAN** | Only on your local network | Fastest |
-| **Relay** | Always, even behind CGNAT | Depends on Cloudflare, usually tens of Mbit/s |
+| **Relay** | Always, even behind CGNAT or double NAT | Depends on Cloudflare, usually tens of Mbit/s |
 
 *Automatic* (the default) picks the best one for you. If your ISP gives you a CGNAT address, ask them for a real public IP (most BD ISPs offer one) to get direct BDIX-speed links.
+
+> **Testing it yourself?** Open the link on your phone with **Wi-Fi off** (mobile data). Many routers can't open your own public IP from inside your own network, even when it works for everyone outside.
 
 > **Heads-up:** links contain your current public IP. If your ISP changes it, ShareMile notices within 10 minutes and shows the new link. Old links stop working, so just send the new one.
 
@@ -162,15 +168,19 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.0.2
+.\build.ps1 -Version 1.0.3
 ```
-Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.0.2\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.0.3\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.0.3 (2026-11-21)
+- Fix: detects double NAT (e.g. a mesh router behind the ISP modem). Before, it showed "Internet links ready" while the direct link was actually blocked; now it switches to the relay link automatically and explains how to get direct links.
+- New Receive page: paste a link or a secret code in one place.
+
 v1.0.2 (2026-11-21)
 - Security: the router port is opened only while something is shared and closed right after (1-hour lease).
 - Security: IPs that try many wrong links/codes are blocked for an hour; the bare address reveals nothing.
