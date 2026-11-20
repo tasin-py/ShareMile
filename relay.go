@@ -17,8 +17,9 @@ import (
 // links work even behind CGNAT. Direct links are always preferred.
 
 var (
-	relayCmd *exec.Cmd
-	relayRe  = regexp.MustCompile(`https://[a-z0-9-]+\.trycloudflare\.com`)
+	relayAuto bool // relay was started automatically (and may be stopped automatically)
+	relayCmd  *exec.Cmd
+	relayRe   = regexp.MustCompile(`https://[a-z0-9-]+\.trycloudflare\.com`)
 )
 
 const cloudflaredURL = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"

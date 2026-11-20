@@ -273,10 +273,12 @@ func handleNetwork(w http.ResponseWriter, r *http.Request) {
 		key = j.key
 		h = nil
 	} else {
+		addStrike(r)
 		http.NotFound(w, r)
 		return
 	}
 	if r.Header.Get("X-SM-Auth") != authToken(key) {
+		addStrike(r)
 		http.Error(w, "wrong code", http.StatusForbidden)
 		return
 	}
@@ -739,6 +741,7 @@ func (j *JoinNet) runTask(ctx context.Context, t *DLTask) {
 		t.set("error", err.Error())
 	default:
 		t.set("done", "")
+		go syncExposure() // now seeding this file: make sure we're reachable
 		j.mu.Lock()
 		host := j.host
 		j.mu.Unlock()

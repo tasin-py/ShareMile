@@ -146,10 +146,11 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		go maybeAutoRelay()
+		go syncExposure()
 		return s.ID, nil
 	case "stopShare":
 		stopShare(a.ID)
+		go syncExposure()
 		return true, nil
 	case "qr":
 		png, err := qrcode.Encode(a.Text, qrcode.Medium, 320)
@@ -170,6 +171,7 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		go refreshNetwork()
 		return true, nil
 	case "relay":
+		relayAuto = false
 		if a.On {
 			startRelay()
 		} else {
@@ -181,10 +183,11 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		go maybeAutoRelay()
+		go syncExposure()
 		return h.id, nil
 	case "removeHostNet":
 		removeHostedNet(a.ID)
+		go syncExposure()
 		return true, nil
 	case "rescanHostNet":
 		swarmMu.RLock()
@@ -206,6 +209,7 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		h.cfg.Active = a.On
 		saveConfigLocked()
 		cfgMu.Unlock()
+		go syncExposure()
 		return true, nil
 	case "join":
 		j, err := joinNetwork(a.Code)
@@ -215,6 +219,7 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		return j.id, nil
 	case "leave":
 		leaveNetwork(a.ID)
+		go syncExposure()
 		return true, nil
 	case "manifest", "download", "cancel", "clearDone", "setSeed", "reconnect":
 		swarmMu.RLock()
@@ -245,6 +250,7 @@ func callRPC(method string, a rpcArgs) (any, error) {
 			if host != "" {
 				go j.announce(host, false)
 			}
+			go syncExposure()
 		case "reconnect":
 			go j.connect()
 		}

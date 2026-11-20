@@ -162,15 +162,20 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.0.1
+.\build.ps1 -Version 1.0.2
 ```
-Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.0.1\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.0.2\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.0.2 (2026-11-21)
+- Security: the router port is opened only while something is shared and closed right after (1-hour lease).
+- Security: IPs that try many wrong links/codes are blocked for an hour; the bare address reveals nothing.
+- The auto relay also stops when nothing is shared.
+
 v1.0.1 (2026-11-21)
 - Fix: after a one-click update, ShareMile now reliably restarts by itself.
 

@@ -115,16 +115,57 @@ func fetchText(url string, timeout time.Duration) string {
 }
 
 // refreshNetwork re-detects addresses, public IP and UPnP mapping.
+var refreshMu sync.Mutex
+
+// needsInternet reports whether anything is being offered to others right now.
+// The router port is only opened while this is true.
+func needsInternet() bool {
+	sharesMu.RLock()
+	busy := len(shares) > 0
+	sharesMu.RUnlock()
+	swarmMu.RLock()
+	defer swarmMu.RUnlock()
+	for _, h := range hosted {
+		if h.cfg.Active {
+			busy = true
+		}
+	}
+	cfgMu.Lock()
+	defer cfgMu.Unlock()
+	for _, j := range joined {
+		if j.cfg.Seed && len(j.cfg.Have) > 0 {
+			busy = true
+		}
+	}
+	return busy
+}
+
+// syncExposure opens or closes the router port (and the auto relay) to match
+// what is currently shared. Call it whenever shares start or stop.
+func syncExposure() { refreshNetwork() }
+
 func refreshNetwork() {
+	refreshMu.Lock()
+	defer refreshMu.Unlock()
 	lan, v6 := localAddrs()
+	cfgMu.Lock()
+	useUPnP := cfg.UseUPnP
+	cfgMu.Unlock()
+	want := useUPnP && needsInternet()
 	netMu.Lock()
 	netState.LanIPs, netState.IPv6 = lan, v6
-	if cfg.UseUPnP {
-		netState.UPnP = "searching"
-	} else {
+	switch {
+	case !useUPnP:
 		netState.UPnP = "off"
+	case !want:
+		netState.UPnP = "idle"
+	default:
+		netState.UPnP = "searching"
 	}
 	netMu.Unlock()
+	if !want {
+		unmapUPnP()
+	}
 
 	var wg sync.WaitGroup
 	var pub string
@@ -136,7 +177,7 @@ func refreshNetwork() {
 			pub = ""
 		}
 	}()
-	if cfg.UseUPnP && len(lan) > 0 {
+	if want && len(lan) > 0 {
 		wg.Add(1)
 		go func() { defer wg.Done(); mapUPnP(lan[0], uint16(publicPort)) }()
 	}
@@ -162,22 +203,16 @@ func maybeAutoRelay() {
 	auto := cfg.AutoRelay != nil && *cfg.AutoRelay
 	cfgMu.Unlock()
 	n := getNet()
-	if !auto || !n.Checked || n.PublicOK || n.RelayState != "off" {
+	busy := needsInternet()
+	if relayAuto && !busy && n.RelayState != "off" {
+		stopRelay() // nothing shared any more: close the auto-started tunnel too
 		return
 	}
-	sharesMu.RLock()
-	busy := len(shares) > 0
-	sharesMu.RUnlock()
-	swarmMu.RLock()
-	for _, h := range hosted {
-		if h.cfg.Active {
-			busy = true
-		}
+	if !auto || !busy || !n.Checked || n.PublicOK || n.RelayState != "off" {
+		return
 	}
-	swarmMu.RUnlock()
-	if busy {
-		startRelay()
-	}
+	startRelay()
+	relayAuto = true
 }
 
 func mapUPnP(lanIP string, port uint16) {
@@ -219,7 +254,7 @@ func mapUPnP(lanIP string, port uint16) {
 	var lastErr error
 	for _, c := range clients {
 		wan, _ := c.GetExternalIPAddress()
-		err := c.AddPortMapping("", port, "TCP", port, lanIP, true, "ShareMile", 7200)
+		err := c.AddPortMapping("", port, "TCP", port, lanIP, true, "ShareMile", 3600) // short lease: a crash can't leave it open for long
 		if err == nil {
 			upnpClient, upnpPort = c, port
 			set("mapped", "", wan)

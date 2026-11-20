@@ -90,11 +90,84 @@ func startPublicServer(port int) error {
 
 func secHeaders(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isBanned(r) {
+			http.Error(w, "Too many wrong links. Try again later.", http.StatusTooManyRequests)
+			return
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Server", "ShareMile")
+		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 		h.ServeHTTP(w, r)
 	})
+}
+
+// ---- brute-force guard: IPs that keep hitting wrong links get blocked -------
+
+type strike struct {
+	n     int
+	first time.Time
+	until time.Time
+}
+
+var (
+	strikes   = map[string]*strike{}
+	strikesMu sync.Mutex
+)
+
+const (
+	strikeLimit  = 30
+	strikeWindow = 10 * time.Minute
+	banFor       = time.Hour
+)
+
+// clientIP returns the caller's address. Relay traffic arrives from the local
+// cloudflared process, which passes the real address in Cf-Connecting-Ip.
+func clientIP(r *http.Request) (string, bool) {
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if p := net.ParseIP(ip); p != nil && p.IsLoopback() {
+		if c := r.Header.Get("Cf-Connecting-Ip"); c != "" {
+			return c, true
+		}
+		return ip, false // the user's own PC: never ban
+	}
+	return ip, true
+}
+
+func isBanned(r *http.Request) bool {
+	ip, ok := clientIP(r)
+	if !ok {
+		return false
+	}
+	strikesMu.Lock()
+	defer strikesMu.Unlock()
+	s := strikes[ip]
+	return s != nil && time.Now().Before(s.until)
+}
+
+func addStrike(r *http.Request) {
+	ip, ok := clientIP(r)
+	if !ok {
+		return
+	}
+	now := time.Now()
+	strikesMu.Lock()
+	defer strikesMu.Unlock()
+	if len(strikes) > 10000 { // keep memory bounded
+		for k, v := range strikes {
+			if now.After(v.until) && now.Sub(v.first) > strikeWindow {
+				delete(strikes, k)
+			}
+		}
+	}
+	s := strikes[ip]
+	if s == nil || now.Sub(s.first) > strikeWindow {
+		s = &strike{first: now}
+		strikes[ip] = s
+	}
+	s.n++
+	if s.n >= strikeLimit {
+		s.until = now.Add(banFor)
+	}
 }
 
 func handleAssets(w http.ResponseWriter, r *http.Request) {
@@ -116,13 +189,11 @@ func handleAssets(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLanding(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
+	// Nothing lives at the bare address: a port scanner learns nothing.
+	if r.URL.Path != "/" && r.URL.Path != "/favicon.ico" {
+		addStrike(r)
 	}
-	b, _ := webFS.ReadFile("web/landing.html")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(bytes.ReplaceAll(b, []byte("{{VERSION}}"), []byte(appVersion)))
+	http.NotFound(w, r)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -136,6 +207,7 @@ func handleShare(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/s/"), "/")
 	s := getShare(parts[0])
 	if s == nil {
+		addStrike(r)
 		b, _ := webFS.ReadFile("web/gone.html")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusNotFound)

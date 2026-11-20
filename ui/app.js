@@ -415,7 +415,7 @@ $('#relay-btn').onclick = e => busyBtn(e.currentTarget, async () => { const on =
 
 function renderSettings(s) {
   const n = s.net, c = s.config;
-  const upnp = {off: 'Off', searching: 'Searching…', mapped: 'Port open ✓', failed: 'Refused by router', none: 'Not supported by router'}[n.upnp] || n.upnp;
+  const upnp = {off: 'Off', idle: 'Closed. Opens only while you share', searching: 'Opening…', mapped: 'Port open while sharing ✓', failed: 'Refused by router', none: 'Not supported by router'}[n.upnp] || n.upnp;
   $('#net-info').innerHTML = [
     ['Local IP', (n.lanIPs || []).join(', ') || '-'],
     ['Public IP', n.publicIP || (n.checked ? 'Not detected' : 'Checking…')],
@@ -447,6 +447,7 @@ function renderSettings(s) {
   const pill = $('#netpill');
   let txt = 'Local network only', cls = 'mid';
   if (!n.checked) { txt = 'Checking network…'; cls = ''; }
+  else if (n.upnp === 'idle') { txt = 'Ready. Nothing exposed'; cls = 'ok'; }
   else if (n.publicOK) { txt = 'Internet links ready'; cls = 'ok'; }
   else if (n.relayState === 'on') { txt = 'Relay active'; cls = 'ok'; }
   else if (n.ipv6) { txt = 'LAN + IPv6 ready'; cls = 'ok'; }
