@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en" data-theme="pitch-black">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShareMile</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><img src="icon.png" alt=""><span>ShareMile</span></div>
+    <nav>
+      <button class="nav on" data-page="quick"><svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg><span>Quick Share</span></button>
+      <button class="nav" data-page="network"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 11l7.6-3.8M8.2 13l7.6 3.8"/></svg><span>Network</span></button>
+      <button class="nav" data-page="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><span>Settings</span></button>
+      <button class="nav" data-page="about"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg><span>About</span></button>
+    </nav>
+    <div class="side-foot">
+      <div class="netpill" id="netpill"><i></i><span>Checking network…</span></div>
+    </div>
+  </aside>
+
+  <main>
+    <!-- QUICK SHARE -->
+    <section class="page on" id="page-quick">
+      <header class="ph">
+        <h1>Quick Share</h1>
+        <p>Pick files or folders. The receiver opens the link or scans the QR code in any browser, anywhere in the world. No app needed on their side.</p>
+      </header>
+      <div class="warn fwwarn" hidden>Windows Firewall may block people on the internet from reaching your files. <button class="btn small" data-fw>Allow ShareMile through the firewall</button></div>
+      <div class="card picker" id="qs-picker">
+        <div class="row gap">
+          <button class="btn" data-pick="files" data-target="qs"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>Add files</button>
+          <button class="btn" data-pick="folders" data-target="qs"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Add folder</button>
+          <div class="pathin grow"><input id="qs-path" placeholder="…or paste a file/folder path and press Enter" spellcheck="false"></div>
+        </div>
+        <div class="chips" id="qs-chips"></div>
+        <div class="scan" id="qs-scan"></div>
+        <div class="row between wrap gap">
+          <label class="check"><input type="checkbox" id="qs-upload"><span></span>Let receivers send files back to me</label>
+          <button class="btn primary" id="qs-start" disabled>Start sharing</button>
+        </div>
+      </div>
+      <div id="qs-list" class="stack"></div>
+      <div class="empty" id="qs-empty">No active shares yet.</div>
+    </section>
+
+    <!-- NETWORK -->
+    <section class="page" id="page-network">
+      <header class="ph">
+        <h1>Share Network</h1>
+        <p>A private swarm. Host files under a secret code. Anyone with the ShareMile app and the code can browse and download what they need. Members also pass pieces to each other, so it gets faster as more people join.</p>
+      </header>
+      <div class="warn fwwarn" hidden>Windows Firewall may block members on the internet from reaching you. <button class="btn small" data-fw>Allow ShareMile through the firewall</button></div>
+      <div class="tabs" id="net-tabs">
+        <button class="tab on" data-tab="host">Host a network</button>
+        <button class="tab" data-tab="join">Join with a code</button>
+      </div>
+      <div class="tabpane on" id="tab-host">
+        <div class="card picker">
+          <div class="row gap wrap">
+            <div class="pathin grow"><input id="hn-name" placeholder="Network name (e.g. Movies 2026)" maxlength="60"></div>
+            <button class="btn" data-pick="files" data-target="hn"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>Add files</button>
+            <button class="btn" data-pick="folders" data-target="hn"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Add folder</button>
+          </div>
+          <div class="pathin"><input id="hn-path" placeholder="…or paste a file/folder path and press Enter" spellcheck="false"></div>
+          <div class="chips" id="hn-chips"></div>
+          <div class="scan" id="hn-scan"></div>
+          <div class="row end"><button class="btn primary" id="hn-create" disabled>Create network</button></div>
+        </div>
+        <div id="hn-list" class="stack"></div>
+      </div>
+      <div class="tabpane" id="tab-join">
+        <div class="card">
+          <div class="row gap">
+            <div class="pathin grow"><input id="jn-code" placeholder="Paste a secret code: SM-XXXXX-XXXXX-…" spellcheck="false" autocomplete="off"></div>
+            <button class="btn primary" id="jn-join">Join</button>
+          </div>
+        </div>
+        <div id="jn-list" class="stack"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="page" id="page-settings">
+      <header class="ph"><h1>Settings</h1><p>Connection, storage and look.</p></header>
+      <div class="card">
+        <h3>Connection</h3>
+        <div class="kv" id="net-info"></div>
+        <div class="warn" id="net-warn" hidden></div>
+        <div class="row gap wrap">
+          <button class="btn" id="net-refresh"><span class="spin" hidden></span>Re-check network</button>
+          <button class="btn" id="fw-btn">Allow through Windows Firewall</button>
+          <span class="muted" id="fw-state"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Sharing</h3>
+        <div class="field">
+          <label>Preferred link</label>
+          <select id="set-linkmode">
+            <option value="auto">Automatic (best available)</option>
+            <option value="public">Internet (direct, public IP)</option>
+            <option value="ipv6">Internet IPv6 (direct)</option>
+            <option value="lan">Same Wi-Fi / LAN only</option>
+            <option value="relay">Relay (works anywhere)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sharing port</label>
+          <div class="row gap"><input type="number" id="set-port" min="1024" max="65535" class="num"><button class="btn" id="set-port-save">Apply</button></div>
+          <small>Forward this TCP port on your router if UPnP isn't available.</small>
+        </div>
+        <label class="check"><input type="checkbox" id="set-upnp"><span></span>Open the port automatically with UPnP</label>
+        <div style="height:10px"></div>
+        <label class="check"><input type="checkbox" id="set-autorelay"><span></span>Turn on the relay automatically when a direct internet link isn't possible</label>
+        <div class="field">
+          <label>Relay (for CGNAT connections)</label>
+          <div class="row gap wrap"><button class="btn" id="relay-btn">Turn relay on</button><span class="muted" id="relay-state"></span></div>
+          <small>Uses a free Cloudflare quick tunnel so links work even when your ISP blocks incoming connections. It is slower than a direct BDIX path. The helper (~20 MB) downloads the first time.</small>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Downloads</h3>
+        <div class="field">
+          <label>Save downloads and received files to</label>
+          <div class="row gap"><div class="pathin grow"><input id="set-dldir" readonly></div><button class="btn" id="set-dldir-btn">Change</button><button class="btn" id="set-dldir-open">Open</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Theme</h3>
+        <div class="themes" id="themes"></div>
+      </div>
+    </section>
+
+    <!-- ABOUT -->
+    <section class="page" id="page-about">
+      <div class="about">
+        <div class="card about-main">
+          <img src="icon.png" class="about-icon" alt="">
+          <h1>ShareMile</h1>
+          <div class="muted">Version <span id="ab-ver"></span> · MIT License</div>
+          <p>A tiny Windows app for sharing files over the internet at full line speed: a link or QR code for anyone with a browser, plus private share networks for your crew. Files travel straight from your PC to the receiver (or through an optional relay). Nothing is uploaded to a cloud drive or stored on anyone's server.</p>
+          <div class="row gap center wrap">
+            <button class="btn primary" id="upd-btn"><span class="spin" hidden></span><span class="lbl">Check for Updates</span></button>
+          </div>
+          <div class="upd-msg" id="upd-msg"></div>
+        </div>
+        <div class="card bmc">
+          <h3>Buy Me a Coffee</h3>
+          <p class="muted">If ShareMile saves you time, a coffee keeps it going.</p>
+          <img src="bmc.png" alt="Buy Me a Coffee QR code" class="bmc-qr">
+          <button class="btn coffee" data-url="https://www.supportkori.com/tasinpy">☕ Buy Me a Coffee</button>
+          <div class="links">
+            <a href="#" data-url="https://github.com/tasin-py">GitHub: tasin-py</a>
+            <a href="#" id="ab-repo" data-url="https://github.com/tasin-py/ShareMile">Project repository</a>
+          </div>
+        </div>
+        <div class="card credits">
+          <h3>Credits</h3>
+          <p>Made by <b>Tasin</b> (<a href="#" data-url="https://github.com/tasin-py">@tasin-py</a>).</p>
+          <p class="muted">Built with Go, Microsoft Edge WebView2, go-webview2, goupnp and go-qrcode. Optional relay by Cloudflare quick tunnels.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toasts" id="toasts"></div>
+<script src="app.js"></script>
+</body>
+</html>

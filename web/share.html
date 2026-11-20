@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>ShareMile</title>
+<link rel="icon" href="/assets/favicon.png">
+<link rel="stylesheet" href="/assets/share.css?v={{VERSION}}">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="#" data-nav=""><img src="/assets/icon.png" alt=""><span>ShareMile</span></a>
+    <span class="direct" title="Files come straight from the sharer's PC. No cloud in between."><i></i>Direct transfer</span>
+  </div>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <h1 id="title">Loading…</h1>
+      <p id="sub" class="muted"></p>
+    </div>
+    <div class="hero-actions">
+      <button class="btn primary big" id="dl-all" disabled>
+        <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+        <span>Download all</span>
+      </button>
+    </div>
+  </section>
+
+  <section class="upload" id="upload" hidden>
+    <label class="drop" id="drop">
+      <input type="file" id="up-input" multiple>
+      <svg viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>
+      <span><b>Send files to the sharer</b><br><small>Tap to choose, or drop files here</small></span>
+    </label>
+    <div class="up-prog" id="up-prog" hidden><div class="bar"><i></i></div><span class="num" id="up-txt"></span></div>
+  </section>
+
+  <nav class="crumbs" id="crumbs"></nav>
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Search files">
+    <div class="seg"><button data-view="grid" class="on" aria-label="Grid view">▦</button><button data-view="list" aria-label="List view">☰</button></div>
+  </div>
+  <section class="grid" id="grid"></section>
+  <p class="foot muted">Speed depends on both connections. Between BDIX-connected ISPs it runs at full local speed.<br>Big files resume in download managers (IDM, ADM, browser) because ranges are supported.</p>
+</main>
+
+<div class="selbar" id="selbar" hidden>
+  <div class="wrap selbar-in">
+    <span><b id="sel-n">0</b> selected · <span id="sel-size" class="num"></span></span>
+    <div class="row">
+      <button class="btn" id="sel-clear">Clear</button>
+      <button class="btn primary" id="sel-dl">Download as ZIP</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-in">
+    <header><span id="m-name"></span><div class="row"><a class="btn" id="m-dl">Download</a><button class="btn icon" id="m-close" aria-label="Close">✕</button></div></header>
+    <div class="m-body" id="m-body"></div>
+    <button class="m-nav prev" id="m-prev" aria-label="Previous">‹</button>
+    <button class="m-nav next" id="m-next" aria-label="Next">›</button>
+  </div>
+</div>
+<script src="/assets/share.js?v={{VERSION}}"></script>
+</body>
+</html>

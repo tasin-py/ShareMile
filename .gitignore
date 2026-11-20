@@ -1,0 +1,9 @@
+build/
+dist/
+*.exe
+*.exe~
+*.test
+*.smpart
+*.smpart.json
+.claude/
+builds/
