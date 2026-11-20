@@ -75,8 +75,6 @@ It has two modes:
 
 1. Download **[ShareMile-Setup.exe](https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-Setup.exe)** and run it. You can choose the install folder.
 2. On the last page, everything is ticked by default (untick what you don't want):
-   - Pin ShareMile to taskbar
-   - Pin ShareMile to Start
    - Add ShareMile to Desktop
    - Allow ShareMile through Windows Firewall *(needed so people on the internet can reach you)*
    - Open Project's GitHub Page
@@ -168,15 +166,18 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.0.3
+.\build.ps1 -Version 1.0.4
 ```
-Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.0.3\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.0.4\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.0.4 (2026-11-21)
+- Installer: removed the "Pin to taskbar" and "Pin to Start" options. ShareMile is still listed in the Start menu, and you can pin it yourself with right-click.
+
 v1.0.3 (2026-11-21)
 - Fix: detects double NAT (e.g. a mesh router behind the ISP modem). Before, it showed "Internet links ready" while the direct link was actually blocked; now it switches to the relay link automatically and explains how to get direct links.
 - New Receive page: paste a link or a secret code in one place.

@@ -52,8 +52,6 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 
 [Run]
 ; Finish page. Every box is ticked by default and performs a real action.
-Filename: "{app}\{#AppExe}"; Parameters: "--pin-taskbar"; Description: "Pin {#AppName} to taskbar"; Flags: postinstall skipifsilent runhidden waituntilterminated
-Filename: "{app}\{#AppExe}"; Parameters: "--pin-start"; Description: "Pin {#AppName} to Start"; Flags: postinstall skipifsilent runhidden waituntilterminated
 Filename: "{app}\{#AppExe}"; Parameters: "--desktop-shortcut"; Description: "Add {#AppName} to Desktop"; Flags: postinstall skipifsilent runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""ShareMile"" dir=in action=allow program=""{app}\{#AppExe}"" enable=yes profile=any"; Description: "Allow {#AppName} through Windows Firewall (needed for internet sharing)"; Verb: runas; Flags: postinstall skipifsilent shellexec runhidden waituntilterminated; Check: not FirewallRuleExists
 Filename: "{#AppURL}"; Description: "Open Project's GitHub Page"; Flags: postinstall skipifsilent shellexec nowait
