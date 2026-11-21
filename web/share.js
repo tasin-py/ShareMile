@@ -86,6 +86,7 @@ function render() {
 
 function updateSel() {
   $('#selbar').hidden = !sel.size;
+  document.body.classList.toggle('has-sel', sel.size > 0);
   $('#sel-n').textContent = sel.size;
   let s = 0; for (const f of D.files) if (sel.has(f.id)) s += f.size;
   $('#sel-size').textContent = fmt(s);
@@ -192,5 +193,49 @@ const drop = $('#drop');
 ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
 drop.addEventListener('drop', e => upload([...e.dataTransfer.files]));
+
+// ---- chat with the sharer
+const chatKey = (() => {
+  let k = localStorage.smChatKey;
+  if (!k || k.length < 16) {
+    const a = new Uint8Array(18); crypto.getRandomValues(a);
+    k = btoa(String.fromCharCode(...a)).replace(/[+/=]/g, c => ({'+': '-', '/': '_', '=': ''}[c]));
+    localStorage.smChatKey = k;
+  }
+  return k;
+})();
+const chatId = 'share:' + base.split('/')[2];
+let chatRev = -1;
+async function chatReq(method, q, body) {
+  const r = await fetch(base + 'chat' + q, {method, cache: 'no-store', headers: {'X-SM-Chat': chatKey, 'Content-Type': 'application/json'}, body: body && JSON.stringify(body)});
+  if (r.status === 404) throw new Error('Chat isn\'t available for this share.');
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Chat error');
+  return j;
+}
+const chatOpts = {
+  key: chatId, title: 'Chat with the sharer', hostLabel: 'Sharer',
+  get: since => chatReq('GET', `?since=${since}&name=${encodeURIComponent(localStorage.smChatName || '')}`),
+  post: body => chatReq('POST', '', {...body, name: localStorage.smChatName || ''}),
+  name: () => localStorage.smChatName || '',
+  setName: n => { localStorage.smChatName = n.trim().slice(0, 32); },
+  onSeen: () => { $('#chat-badge').textContent = ''; },
+};
+$('#chat-fab').onclick = () => SMChat.open(chatOpts);
+async function chatBadge() {
+  if (SMChat.current !== chatId) {
+    try {
+      const v = await chatReq('GET', `?since=${chatRev}&name=${encodeURIComponent(localStorage.smChatName || '')}`);
+      $('#chat-fab').hidden = false;
+      if (!v.same) {
+        chatRev = v.rev;
+        const n = SMChat.unread(chatId, v.seq);
+        $('#chat-badge').textContent = n ? (n > 99 ? '99+' : n) : '';
+      }
+    } catch { /* old sender or offline */ }
+  } else chatRev = -1;
+  setTimeout(chatBadge, document.hidden ? 60000 : 15000);
+}
+setTimeout(chatBadge, 800);
 
 load();

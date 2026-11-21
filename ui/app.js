@@ -181,7 +181,7 @@ function renderShares(list) {
       c.innerHTML = `<div class="share">
         <div class="qr"><img alt="QR code"></div>
         <div class="share-body">
-          <div class="share-title"><h3></h3><div class="row gap"><button class="btn small" data-act="renew" title="Make a new link. The current one stops working">New link</button><button class="btn small danger" data-act="stop">Stop sharing</button></div></div>
+          <div class="share-title"><h3></h3><div class="row gap"><button class="btn small chat-btn" data-act="chat" title="Chat with people who open this link"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat<span class="badge"></span></button><button class="btn small" data-act="renew" title="Make a new link. The current one stops working">New link</button><button class="btn small danger" data-act="stop">Stop sharing</button></div></div>
           <div class="seg"></div>
           <div class="link"><input readonly spellcheck="false"><button class="btn" data-act="copy">Copy link</button><button class="btn" data-act="open" title="Open in browser">Open</button></div>
           <div class="note"></div>
@@ -198,11 +198,14 @@ function renderShares(list) {
         if (!confirm('Make a new link for this share?\n\nThe current link (and QR code) stops working right away. Anyone who still needs the files will need the new link.')) return;
         busyBtn(e.currentTarget, async () => { await rpc('refreshShare', {id: s.id}); toast('New link ready. Send it again'); await refresh(); });
       };
+      $('[data-act=chat]', c).onclick = () => openChat('share', s.id, 'Chat · ' + c._name, 'Everyone with the link', 'Sharer');
       $('[data-act=copy]', c).onclick = () => copy($('.link input', c).value);
       $('[data-act=open]', c).onclick = () => rpc('openURL', {url: $('.link input', c).value});
       box.insertBefore(c, box.children[idx] || null);
     }
     $('h3', c).textContent = s.name;
+    c._name = s.name;
+    setBadge($('[data-act=chat]', c), 'share:' + s.id, s.chat);
     const links = s.links || [];
     // Only the user's own click is remembered; otherwise Relay (first) is shown,
     // or the link type picked in Settings → Preferred link.
@@ -298,6 +301,7 @@ function renderHosted(list) {
         <div class="row gap wrap method-row">
           <label class="method">Members connect via <select class="method-sel" data-act="method">${methodOptions()}</select></label>
           <button class="btn small" data-act="edit">Edit files</button>
+          <button class="btn small chat-btn" data-act="chat" title="Group chat with members"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Group chat<span class="badge"></span></button>
         </div>
         <div class="note method-note" data-f="mnote" hidden></div>
         <div class="hn-edit" hidden>
@@ -319,6 +323,7 @@ function renderHosted(list) {
           </div>
         </div>`;
       $('[data-act=copy]', c).onclick = () => copy($('[data-f=code]', c).textContent);
+      $('[data-act=chat]', c).onclick = () => openChat('hosted', c._h.id, 'Group chat · ' + c._h.name, 'You host this network', 'Host');
       wireHostEditor(c);
       $('[data-act=pause]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('pauseHostNet', {id: h.id, on: !c._active}); await refresh(); });
       $('[data-act=rescan]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('rescanHostNet', {id: h.id}); toast('Files rescanned'); await refresh(); });
@@ -344,6 +349,7 @@ function renderHosted(list) {
     f('err').hidden = !h.err;
     f('err').textContent = h.err || '';
     c._h = h;
+    setBadge($('[data-act=chat]', c), 'hosted:' + h.id, h.chat);
     const msel = $('[data-act=method]', c);
     if (document.activeElement !== msel) msel.value = h.method || 'auto';
     f('mnote').hidden = !h.methodNote;
@@ -458,6 +464,7 @@ function rcRender() {
   $('#rc-pick').hidden = false;
   $('#rc-help').hidden = true;
   $('#rc-name').textContent = RC.name;
+  setBadge($('#rc-chat'), 'recv:' + RC.token, recvSeq[RC.token]);
   $('#rc-sum').textContent = RC.files.length.toLocaleString() + (RC.files.length === 1 ? ' file · ' : ' files · ') + fmtBytes(RC.total);
   const q = $('#rc-filter').value.trim().toLowerCase();
   const shown = sortFiles(RC.files.filter(f => !q || f.rel.toLowerCase().includes(q))).slice(0, 3000);
@@ -473,6 +480,8 @@ function rcSum() {
   $('#rc-all').checked = n === RC.files.length;
   ['#rc-dl', '#rc-idm', '#rc-browser'].forEach(s => $(s).disabled = !n);
 }
+$('#rc-close').onclick = () => { RC = null; rcRender(); renderReceives((S && S.receives) || []); };
+$('#rc-chat').onclick = () => openRecvChat(RC.token, RC.name);
 $('#rc-all').onchange = e => { rcSel.clear(); if (e.target.checked) RC.files.forEach(f => rcSel.add(f.id)); rcRender(); };
 $('#rc-filter').oninput = () => rcRender();
 const rcIds = () => [...rcSel].map(String);
@@ -492,7 +501,7 @@ $('#rc-browser').onclick = e => busyBtn(e.currentTarget, async () => {
 
 function renderReceives(list) {
   const box = $('#rc-list');
-  if (!RC) $('#rc-help').hidden = list.length > 0;
+  $('#rc-help').hidden = !!RC || list.length > 0;
   const ids = new Set(list.map(t => t.id));
   $$('.rc-card', box).forEach(c => { if (!ids.has(c.dataset.id)) c.remove(); });
   list.forEach((t, idx) => {
@@ -506,6 +515,7 @@ function renderReceives(list) {
         <div class="row between wrap gap">
           <span class="stats"><span><b data-f="got"></b> of <b data-f="total"></b></span><span>Files <b data-f="files"></b></span><span>Speed <b class="stat-speed" data-f="speed"></b></span><span data-f="eta"></span></span>
           <span class="row gap wrap">
+            <button class="btn small chat-btn" data-act="chat" title="Chat with the sender"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat<span class="badge"></span></button>
             <button class="btn small" data-act="toggle"></button>
             <button class="btn small" data-act="dir">Open folder</button>
             <button class="btn small danger" data-act="del"></button>
@@ -514,6 +524,7 @@ function renderReceives(list) {
         <div class="warn" data-f="err" hidden></div>`;
       $('[data-act=toggle]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc(c._state === 'downloading' ? 'recvPause' : 'recvResume', {id: t.id}); await refresh(); });
       $('[data-act=dir]', c).onclick = () => rpc('recvOpenDir', {id: t.id});
+      $('[data-act=chat]', c).onclick = () => openRecvChat(c._t.token, c._t.name);
       $('[data-act=del]', c).onclick = e => {
         const done = c._state === 'done';
         if (!done && !confirm('Cancel this download and delete the unfinished parts?')) return;
@@ -521,7 +532,8 @@ function renderReceives(list) {
       };
       box.insertBefore(c, box.children[idx] || null);
     }
-    c._state = t.state;
+    c._state = t.state; c._t = t;
+    setBadge($('[data-act=chat]', c), 'recv:' + t.token, recvSeq[t.token]);
     const f = k => $(`[data-f="${k}"]`, c);
     $('h3', c).textContent = t.name;
     const st = {downloading: ['Downloading', 'ok'], paused: ['Paused', ''], done: ['Done ✓', 'ok'], error: ['Stopped', 'bad']}[t.state] || [t.state, ''];
@@ -555,6 +567,7 @@ $('#rc-go').onclick = e => busyBtn(e.currentTarget, async () => {
     $('#rc-filter').value = '';
     $('#rc-idm').hidden = !r.idm;
     rcRender();
+    pollRecvChat(RC.token).then(() => RC && setBadge($('#rc-chat'), 'recv:' + RC.token, recvSeq[RC.token]));
     await refresh();
   } else if (/^SM-/i.test(v)) {
     await rpc('join', {code: v});
@@ -622,7 +635,7 @@ function renderJoined(list) {
       c = document.createElement('div');
       c.className = 'card jn-card';
       c.dataset.id = j.id;
-      c.innerHTML = `<div class="share-title"><div class="row gap"><button class="btn icon bm" data-act="bm" title="Bookmark" aria-label="Bookmark">${BM_SVG}</button><h3></h3></div><div class="row gap"><span class="pill" data-f="status"></span><button class="btn small" data-act="reconnect">Reconnect</button><button class="btn small danger" data-act="leave">Leave</button></div></div>
+      c.innerHTML = `<div class="share-title"><div class="row gap"><button class="btn icon bm" data-act="bm" title="Bookmark" aria-label="Bookmark">${BM_SVG}</button><h3></h3></div><div class="row gap"><span class="pill" data-f="status"></span><button class="btn small chat-btn" data-act="chat" title="Group chat with the host and members"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Group chat<span class="badge"></span></button><button class="btn small" data-act="reconnect">Reconnect</button><button class="btn small danger" data-act="leave">Leave</button></div></div>
         <div class="stats" style="margin:8px 0 12px"><span>Other members <b data-f="peers"></b></span><span>You uploaded <b data-f="up"></b></span></div>
         <label class="check" style="margin-bottom:12px"><input type="checkbox" data-act="seed"><span></span>Share what I download with other members (faster for everyone)</label>
         <div class="warn" data-f="err" hidden></div>
@@ -639,6 +652,7 @@ function renderJoined(list) {
         <div class="row between" style="margin:14px 0 8px"><b>Downloads</b><div class="row gap"><button class="btn small" data-act="openfolder">Open folder</button><button class="btn small" data-act="clear">Clear finished</button></div></div>
         <div class="tasks"></div>`;
       $('[data-act=leave]', c).onclick = e => { if (confirm('Leave this network?')) busyBtn(e.currentTarget, async () => { await rpc('leave', {id: j.id}); await refresh(); }); };
+      $('[data-act=chat]', c).onclick = () => openChat('joined', j.id, 'Group chat · ' + c._j.name, 'Host and members', 'Host');
       $('[data-act=reconnect]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('reconnect', {id: j.id}); toast('Reconnecting…'); });
       $('[data-act=bm]', c).onclick = e => busyBtn(e.currentTarget, async () => { await setBookmark(c._j.code, !c._j.bookmarked); });
       $('[data-act=seed]', c).onchange = e => rpc('setSeed', {id: j.id, on: e.target.checked});
@@ -660,6 +674,7 @@ function renderJoined(list) {
       box.insertBefore(c, box.children[idx] || null);
     }
     c._j = j;
+    setBadge($('[data-act=chat]', c), 'joined:' + j.id, j.chat);
     const f = k => $(`[data-f="${k}"]`, c);
     $('h3', c).textContent = j.name;
     $('[data-act=bm]', c).classList.toggle('on', !!j.bookmarked);
@@ -806,6 +821,7 @@ function renderSettings(s) {
   $('#set-autorelay').checked = c.autoRelay;
   $$('.fwwarn').forEach(w => w.hidden = s.firewall !== 'missing');
   $('#set-dldir').value = c.downloadDir;
+  if (document.activeElement !== $('#set-chatname')) $('#set-chatname').value = c.chatName || '';
   const rs = {off: 'Off', downloading: 'Downloading helper…', starting: 'Starting…', on: 'On: ' + n.relayURL, error: n.relayErr || 'Error'}[n.relayState] || n.relayState;
   $('#relay-state').textContent = rs;
   $('#relay-btn').textContent = ['on', 'starting', 'downloading'].includes(n.relayState) ? 'Turn relay off' : 'Turn relay on';
@@ -842,6 +858,93 @@ $('#upd-btn').onclick = e => busyBtn(e.currentTarget, async () => {
     else { msg.textContent = 'You\'re on the latest version (' + S.version + ').'; lbl.textContent = 'Check for Updates'; }
   } catch (er) { msg.textContent = er.message; lbl.textContent = 'Check for Updates'; }
 });
+
+// ------------------------------------------------------------- chat
+const chatName = () => (S && S.config.chatName) || '';
+function setBadge(btn, key, seq) {
+  if (!btn) return;
+  const n = SMChat.current === key ? 0 : SMChat.unread(key, seq);
+  const t = n ? (n > 99 ? '99+' : String(n)) : '';
+  const b = $('.badge', btn);
+  if (b.textContent !== t) b.textContent = t;
+}
+function openChat(kind, id, title, sub, hostLabel) {
+  SMChat.open({
+    key: kind + ':' + id, title, sub, hostLabel,
+    get: since => rpc('chat', {kind, id, since}),
+    post: body => rpc('chatPost', {kind, id, ...body}),
+    name: chatName,
+    setName: async n => { await rpc('setConfig', {chatName: n}); S.config.chatName = n.trim(); $('#set-chatname').value = n.trim(); },
+    onSeen: seq => { if (kind === 'recv') recvSeq[id] = seq; },
+  });
+}
+// Chats with senders: once opened, the app checks them in the background (every 15 s).
+const recvSeq = {};
+const recvWatch = new Set(JSON.parse(localStorage.getItem('sm-recv-chats') || '[]'));
+function openRecvChat(token, name) {
+  recvWatch.add(token);
+  localStorage.setItem('sm-recv-chats', JSON.stringify([...recvWatch].slice(-30)));
+  openChat('recv', token, 'Chat · ' + name, 'With the sender', 'Sharer');
+}
+const recvRev = {};
+async function watchRecvChats() {
+  const live = new Set([...((S && S.receives) || []).map(t => t.token), RC && RC.token].filter(Boolean));
+  for (const tok of recvWatch) if (live.has(tok)) await pollRecvChat(tok);
+  setTimeout(watchRecvChats, document.hidden ? 60000 : 15000);
+}
+async function pollRecvChat(tok) {
+  if (SMChat.current === 'recv:' + tok) return;
+  try {
+    const v = await rpc('chat', {kind: 'recv', id: tok, since: recvRev[tok] ?? -1});
+    if (!v.same) { recvRev[tok] = v.rev; recvSeq[tok] = v.seq; }
+  } catch { /* sender offline, or an older ShareMile without chat */ }
+}
+setTimeout(watchRecvChats, 3000);
+$('#set-chatname-save').onclick = e => busyBtn(e.currentTarget, async () => { await rpc('setConfig', {chatName: $('#set-chatname').value}); toast('Chat name saved'); await refresh(); });
+
+// ------------------------------------------------------------- paste buttons
+$$('[data-paste]').forEach(b => b.onclick = async () => {
+  const inp = $('#' + b.dataset.paste);
+  let t;
+  try { t = (await navigator.clipboard.readText()).trim(); }
+  catch { inp.focus(); toast('Couldn\'t read the clipboard. Press Ctrl+V in the box instead', true); return; }
+  if (!t) { toast('The clipboard is empty', true); return; }
+  inp.value = t; inp.dispatchEvent(new Event('input')); inp.focus();
+});
+
+// ------------------------------------------------------------- drag and drop
+// Drop files or folders anywhere on Quick Share (or Network → Host). The page
+// can't see real paths, so the files go to the app, which reads their paths.
+let dragDepth = 0, dropFor = null;
+const dragHasFiles = e => [...((e.dataTransfer && e.dataTransfer.types) || [])].includes('Files');
+const dropTarget = () => $('#page-quick').classList.contains('on') ? 'qs'
+  : $('#page-network').classList.contains('on') && $('#tab-host').classList.contains('on') ? 'hn' : null;
+function showDrop(on) {
+  const t = dropTarget();
+  $('#dropzone').hidden = !(on && t);
+  if (!(on && t)) return;
+  $('#dropzone b').textContent = t === 'qs' ? 'Drop to share' : 'Drop to add to the new network';
+  $('#dropzone span').textContent = t === 'qs' ? 'Files and folders are added to your share' : 'Files and folders are added before you create it';
+}
+document.addEventListener('dragenter', e => { if (!dragHasFiles(e)) return; e.preventDefault(); dragDepth++; showDrop(true); });
+document.addEventListener('dragover', e => { if (!dragHasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = dropTarget() ? 'copy' : 'none'; });
+document.addEventListener('dragleave', e => { if (!dragHasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; showDrop(false); } });
+document.addEventListener('drop', e => {
+  if (!dragHasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; showDrop(false);
+  const t = dropTarget();
+  if (!t || !e.dataTransfer.files.length) return;
+  const wvw = window.chrome && window.chrome.webview;
+  if (!wvw || !wvw.postMessageWithAdditionalObjects) { toast('Drag and drop needs a newer Microsoft Edge WebView2. Use Add files instead', true); return; }
+  dropFor = t;
+  wvw.postMessageWithAdditionalObjects('sm-drop', e.dataTransfer.files);
+});
+window.smDropped = paths => {
+  if (!dropFor) return;
+  if (!paths || !paths.length) { toast('Couldn\'t read the dropped items. Use Add files instead', true); return; }
+  addPaths(dropFor, paths);
+  toast(`Added ${paths.length} item${paths.length > 1 ? 's' : ''}`);
+};
 
 // ------------------------------------------------------------- polling
 let timer = null;

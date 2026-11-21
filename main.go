@@ -191,6 +191,7 @@ func main() {
 	wv.SetSize(780, 560, webview2.HintMin)
 	setDarkTitle(isDarkTheme(cfg.Theme))
 	wv.Bind("smSetDarkTitle", func(dark bool) error { setDarkTitle(dark); return nil })
+	installDropHandler(wv)
 	hookClose(mainHwnd, func() bool {
 		if !busy() {
 			return true

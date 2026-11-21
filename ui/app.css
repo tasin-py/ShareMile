@@ -223,4 +223,12 @@ small{color:var(--muted);display:block;margin-top:6px;font-size:12px}
 .fb-row.removed .nm{opacity:.5;text-decoration:line-through}
 .btn.icon.x{width:30px;height:30px;padding:0;font-size:13px;color:var(--muted)}
 .btn.icon.x:hover{color:var(--danger);border-color:var(--danger)}
-.task-acts{align-items:center}
+.task-acts{align-items:center}/* receive header, paste, drag and drop, chat buttons */
+.rc-head{display:flex;align-items:baseline;gap:10px;min-width:0;flex-wrap:wrap}
+.dropzone{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(3px);pointer-events:none}
+.dropzone>div{display:flex;flex-direction:column;align-items:center;gap:8px;padding:38px 56px;border:2px dashed var(--acc);border-radius:20px;background:var(--card);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.dropzone svg{width:44px;height:44px;fill:none;stroke:var(--acc);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.dropzone b{font-size:18px}
+.dropzone span{color:var(--muted);font-size:13px}
+.chat-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+@media (min-width:1180px){body.smc-open main{padding-right:432px}}

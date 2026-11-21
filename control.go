@@ -56,6 +56,8 @@ func startControlServer() error {
 			b = bmcQR
 		case "icon.png":
 			b, err = assetFS.ReadFile("assets/icon.png")
+		case "chat.js", "chat.css": // shared with the browser share page
+			b, err = webFS.ReadFile("web/" + rest)
 		default:
 			b, err = uiFS.ReadFile("ui/" + rest)
 		}
@@ -94,6 +96,14 @@ type rpcArgs struct {
 	Restore     []string `json:"restore"`
 	RestoreAll  bool     `json:"restoreAll"`
 	SetRoots    bool     `json:"setRoots"`
+	Kind        string   `json:"kind"`
+	Since       int64    `json:"since"`
+	Op          string   `json:"op"`
+	Reply       int64    `json:"reply"`
+	Msg         int64    `json:"msg"`
+	Emoji       string   `json:"emoji"`
+	Mentions    []string `json:"mentions"`
+	ChatName    *string  `json:"chatName"`
 }
 
 func handleRPC(w http.ResponseWriter, r *http.Request, method string) {
@@ -357,6 +367,10 @@ func callRPC(method string, a rpcArgs) (any, error) {
 			return true, shellExec("open", t.Dir, "")
 		}
 		return true, nil
+	case "chat":
+		return chatCall(a.Kind, a.ID, a.Since, nil)
+	case "chatPost":
+		return chatCall(a.Kind, a.ID, 0, &chatPost{Op: a.Op, Text: a.Text, Reply: a.Reply, Mentions: a.Mentions, Msg: a.Msg, Emoji: a.Emoji})
 	case "bdixCheck":
 		startBDIXCheck()
 		return true, nil
@@ -409,6 +423,14 @@ func setConfig(a rpcArgs) error {
 	if a.AutoRelay != nil {
 		v := *a.AutoRelay
 		cfg.AutoRelay = &v
+	}
+	if a.ChatName != nil {
+		n := cleanChatName(*a.ChatName)
+		if n == "" {
+			cfgMu.Unlock()
+			return errors.New("type a name")
+		}
+		cfg.ChatName = n
 	}
 	saveConfigLocked()
 	port := cfg.Port
@@ -485,10 +507,13 @@ func buildState() map[string]any {
 		s.recvMu.Lock()
 		recv := append([]string(nil), s.Received...)
 		s.recvMu.Unlock()
+		s.chat.mu.Lock()
+		chatSeq := s.chat.Seq
+		s.chat.mu.Unlock()
 		so = append(so, map[string]any{
 			"id": s.ID, "name": s.Name, "count": len(s.Files), "total": s.Total, "links": links, "best": bestURL,
 			"allowUpload": s.AllowUpload, "visits": s.hits.Load(), "sent": s.bytes.Load(), "speed": s.Speed(),
-			"active": s.active.Load(), "received": recv, "roots": s.Roots,
+			"active": s.active.Load(), "received": recv, "roots": s.Roots, "chat": chatSeq,
 		})
 	}
 
@@ -513,9 +538,12 @@ func buildState() map[string]any {
 			count, total = len(h.man.Files), h.man.Total
 		}
 		h.mu.Unlock()
+		h.chat.mu.Lock()
+		hchat := h.chat.Seq
+		h.chat.mu.Unlock()
 		ho = append(ho, map[string]any{
 			"id": h.id, "name": h.cfg.Name, "code": h.code(), "count": count, "total": total, "roots": h.cfg.Roots,
-			"active": h.cfg.Active, "method": h.method(), "methodNote": methodStatus(h.method()), "excluded": len(h.cfg.Exclude), "peers": len(h.livePeers()), "sent": h.bytes.Load(), "speed": h.Speed(), "err": scanErr,
+			"active": h.cfg.Active, "method": h.method(), "methodNote": methodStatus(h.method()), "excluded": len(h.cfg.Exclude), "peers": len(h.livePeers()), "sent": h.bytes.Load(), "speed": h.Speed(), "err": scanErr, "chat": hchat,
 		})
 	}
 	var jo []map[string]any
@@ -529,6 +557,7 @@ func buildState() map[string]any {
 		}
 		peers := len(j.peers)
 		status, errS := j.status, j.err
+		jchat := j.chatSeq
 		j.mu.Unlock()
 		cfgMu.Lock()
 		have := map[string]bool{}
@@ -544,7 +573,7 @@ func buildState() map[string]any {
 		}
 		jo = append(jo, map[string]any{
 			"id": j.id, "name": name, "status": status, "err": errS, "files": files, "peers": peers,
-			"tasks": j.taskList(), "have": have, "seed": seed, "uploaded": j.bytes.Load(), "code": code, "bookmarked": bookmarked,
+			"tasks": j.taskList(), "have": have, "seed": seed, "uploaded": j.bytes.Load(), "code": code, "bookmarked": bookmarked, "chat": jchat,
 		})
 	}
 	fwMu.Lock()
@@ -559,7 +588,7 @@ func buildState() map[string]any {
 	return map[string]any{
 		"app": appName, "version": appVersion, "repo": "https://github.com/" + repoSlug,
 		"net": getNet(), "links": eps, "shares": so, "hosted": ho, "joined": jo, "receives": recvView(), "bookmarks": bookmarksView(),
-		"config":   map[string]any{"port": c.Port, "downloadDir": c.DownloadDir, "theme": c.Theme, "useUpnp": c.UseUPnP, "linkMode": c.LinkMode, "autoRelay": c.AutoRelay != nil && *c.AutoRelay},
+		"config":   map[string]any{"port": c.Port, "downloadDir": c.DownloadDir, "theme": c.Theme, "useUpnp": c.UseUPnP, "linkMode": c.LinkMode, "autoRelay": c.AutoRelay != nil && *c.AutoRelay, "chatName": c.ChatName},
 		"firewall": fw, "publicErr": pe, "listenPort": publicPort,
 	}
 }

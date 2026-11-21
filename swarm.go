@@ -31,12 +31,12 @@ import (
 const pieceSize = 4 << 20
 
 type NFile struct {
-	ID   string `json:"id"`
-	Rel  string `json:"rel"`
-	Size int64  `json:"size"`
-	Kind string `json:"kind"`
-	MTime int64 `json:"mtime,omitempty"` // sender's modified time, Unix ms
-	CTime int64 `json:"ctime,omitempty"` // sender's created time, Unix ms
+	ID    string `json:"id"`
+	Rel   string `json:"rel"`
+	Size  int64  `json:"size"`
+	Kind  string `json:"kind"`
+	MTime int64  `json:"mtime,omitempty"` // sender's modified time, Unix ms
+	CTime int64  `json:"ctime,omitempty"` // sender's created time, Unix ms
 }
 
 type Manifest struct {
@@ -67,6 +67,7 @@ type HostNet struct {
 	scanErr string
 	peers   map[string]*PeerInfo
 	hashes  map[string]*hashJob
+	chat    *Chat
 	Meter
 }
 
@@ -381,6 +382,14 @@ func addHostedNet(name string, roots []string, method string) (*HostNet, error) 
 func startHostedNet(c *HostedNetCfg) *HostNet {
 	key, _ := hex.DecodeString(c.Key)
 	h := &HostNet{cfg: c, key: key, id: netID(key), peers: map[string]*PeerInfo{}, hashes: map[string]*hashJob{}}
+	cfgMu.Lock()
+	if c.ChatID == "" {
+		c.ChatID = randToken(9)
+		saveConfigLocked()
+	}
+	chatFile := chatPath(c.ChatID)
+	cfgMu.Unlock()
+	h.chat = newChat(chatFile)
 	h.rescan()
 	swarmMu.Lock()
 	hosted[h.id] = h
@@ -407,6 +416,9 @@ func removeHostedNet(id string) {
 	cfg.Networks = out
 	saveConfigLocked()
 	cfgMu.Unlock()
+	if h.chat != nil && h.chat.path != "" {
+		os.Remove(h.chat.path)
+	}
 }
 
 func (h *HostNet) pieceHashes(fid string) ([]string, error) {
@@ -530,6 +542,9 @@ func handleNetwork(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			serveFile(w, r, f, &h.Meter, true)
+		case "chat":
+			_, me, _ := selfChat()
+			serveChat(w, r, h.chat, me)
 		case "announce":
 			var p PeerInfo
 			if json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&p) != nil || p.ID == "" {
@@ -565,7 +580,10 @@ func handleNetwork(w http.ResponseWriter, r *http.Request) {
 				rev = h.man.Rev
 			}
 			h.mu.Unlock()
-			writeJSON(w, map[string]any{"peers": others, "rev": rev})
+			h.chat.mu.Lock()
+			seq := h.chat.Seq
+			h.chat.mu.Unlock()
+			writeJSON(w, map[string]any{"peers": others, "rev": rev, "chat": seq})
 		default:
 			http.NotFound(w, r)
 		}
@@ -618,18 +636,19 @@ type DLTask struct {
 }
 
 type JoinNet struct {
-	cfg    *JoinedNetCfg
-	key    []byte
-	id     string
-	mu     sync.Mutex
-	host   string
-	status string // connecting|online|offline
-	err    string
-	man    *Manifest
-	peers  []*PeerInfo
-	tasks  map[string]*DLTask
-	order  []string
-	stop   chan struct{}
+	cfg     *JoinedNetCfg
+	key     []byte
+	id      string
+	mu      sync.Mutex
+	host    string
+	status  string // connecting|online|offline
+	err     string
+	man     *Manifest
+	peers   []*PeerInfo
+	tasks   map[string]*DLTask
+	order   []string
+	stop    chan struct{}
+	chatSeq int64 // latest chat message number the host reported
 	Meter
 }
 
@@ -646,9 +665,16 @@ func (j *JoinNet) havePath(fid string) string {
 }
 
 func (j *JoinNet) req(ctx context.Context, method, base, path string, body io.Reader) (*http.Response, error) {
+	return j.reqH(ctx, method, base, path, body, nil)
+}
+
+func (j *JoinNet) reqH(ctx context.Context, method, base, path string, body io.Reader, hdr map[string]string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(endpointURL(base), "/")+"/n/"+j.id+path, body)
 	if err != nil {
 		return nil, err
+	}
+	for k, v := range hdr {
+		req.Header.Set(k, v)
 	}
 	req.Header.Set("X-SM-Auth", authToken(j.key))
 	req.Header.Set("X-SM-Port", itoa(publicPort))
@@ -841,12 +867,14 @@ func (j *JoinNet) announce(host string, leave bool) error {
 	var out struct {
 		Peers []*PeerInfo `json:"peers"`
 		Rev   int64       `json:"rev"`
+		Chat  int64       `json:"chat"`
 	}
 	if resp.StatusCode != 200 || json.NewDecoder(resp.Body).Decode(&out) != nil {
 		return errors.New("announce failed")
 	}
 	j.mu.Lock()
 	j.peers = out.Peers
+	j.chatSeq = out.Chat
 	stale := !leave && out.Rev != 0 && (j.man == nil || j.man.Rev != out.Rev)
 	j.mu.Unlock()
 	if stale {

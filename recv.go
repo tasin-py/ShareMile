@@ -33,10 +33,10 @@ const (
 )
 
 type RecvFile struct {
-	ID   int    `json:"id"`
-	Rel  string `json:"rel"`
-	Size int64  `json:"size"`
-	Kind string `json:"kind"`
+	ID    int    `json:"id"`
+	Rel   string `json:"rel"`
+	Size  int64  `json:"size"`
+	Kind  string `json:"kind"`
 	MTime int64  `json:"mtime,omitempty"`
 	CTime int64  `json:"ctime,omitempty"`
 }
@@ -708,7 +708,7 @@ func recvView() []map[string]any {
 	for i := len(ts) - 1; i >= 0; i-- { // newest first
 		t := ts[i]
 		t.mu.Lock()
-		v := map[string]any{"id": t.ID, "name": t.Name, "dir": t.Dir, "count": len(t.Files), "doneCount": len(t.Done),
+		v := map[string]any{"id": t.ID, "token": t.Token, "name": t.Name, "dir": t.Dir, "count": len(t.Files), "doneCount": len(t.Done),
 			"total": t.Total, "got": t.got.Load(), "state": t.State, "err": t.Err, "speed": t.meter.Speed()}
 		t.mu.Unlock()
 		out = append(out, v)

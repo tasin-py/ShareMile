@@ -105,6 +105,7 @@ type Share struct {
 	Created     time.Time
 	Received    []string
 	recvMu      sync.Mutex
+	chat        *Chat
 	Meter
 }
 
@@ -260,7 +261,7 @@ func createShare(roots []string, allowUpload bool) (*Share, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Share{ID: randToken(6), Token: randToken(12), Name: shareName(roots), Roots: roots, Files: files, Total: total, AllowUpload: allowUpload, Created: time.Now()}
+	s := &Share{ID: randToken(6), Token: randToken(12), Name: shareName(roots), Roots: roots, Files: files, Total: total, AllowUpload: allowUpload, Created: time.Now(), chat: newChat("")}
 	sharesMu.Lock()
 	shares[s.Token] = s
 	sharesMu.Unlock()

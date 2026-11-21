@@ -202,7 +202,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// /s/{token}[/api | /f/{id} | /t/{id} | /zip | /up]
+// /s/{token}[/api | /f/{id} | /t/{id} | /zip | /up | /chat]
 func handleShare(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/s/"), "/")
 	s := getShare(parts[0])
@@ -249,6 +249,9 @@ func handleShare(w http.ResponseWriter, r *http.Request) {
 		serveZip(w, r, s)
 	case "up":
 		handleUpload(w, r, s)
+	case "chat":
+		_, me, _ := selfChat()
+		serveChat(w, r, s.chat, me)
 	default:
 		http.NotFound(w, r)
 	}

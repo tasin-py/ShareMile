@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"errors"
+	"os"
 	"strings"
 )
 
@@ -42,6 +43,13 @@ func renewHostedNet(id string) (string, error) {
 	h.id = netID(key)
 	h.peers = map[string]*PeerInfo{}
 	h.mu.Unlock()
+	// Old members lose access, so they shouldn't see what's said from now on.
+	cfgMu.Lock()
+	old := h.chat.path
+	h.cfg.ChatID = randToken(9)
+	h.chat = newChat(chatPath(h.cfg.ChatID))
+	cfgMu.Unlock()
+	os.Remove(old)
 	hosted[h.id] = h
 	swarmMu.Unlock()
 	cfgMu.Lock()

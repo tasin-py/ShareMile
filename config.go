@@ -9,12 +9,13 @@ import (
 
 // HostedNetCfg is a persisted share network that this PC hosts.
 type HostedNetCfg struct {
-	Key    string   `json:"key"` // hex, 10 bytes
-	Name   string   `json:"name"`
-	Roots  []string `json:"roots"`
-	Active bool     `json:"active"`
+	Key     string   `json:"key"` // hex, 10 bytes
+	Name    string   `json:"name"`
+	Roots   []string `json:"roots"`
+	Active  bool     `json:"active"`
 	Method  string   `json:"method,omitempty"`  // how members reach this PC: auto|relay|public|lan|ipv6
 	Exclude []string `json:"exclude,omitempty"` // files (rel paths) the host removed from the network
+	ChatID  string   `json:"chatId,omitempty"`  // name of the saved group chat file
 }
 
 // JoinedNetCfg is a persisted share network this PC has joined.
@@ -38,6 +39,8 @@ type Config struct {
 	Joined      []*JoinedNetCfg `json:"joined"`
 	Bookmarks   []*Bookmark     `json:"bookmarks"`
 	Retired     []string        `json:"retired,omitempty"` // ids of network codes this PC replaced
+	ChatName    string          `json:"chatName,omitempty"`
+	ChatKey     string          `json:"chatKey,omitempty"` // private: proves this PC's chat identity
 }
 
 var (

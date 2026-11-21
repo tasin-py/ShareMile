@@ -59,7 +59,7 @@ It has two modes:
 
 ## Features
 
-- **Pick files or folders**, or paste a path. ShareMile scans them and shows the count and size before you start.
+- **Pick files or folders, or drag them in**: drop files and folders anywhere on the Quick Share page (or paste a path). ShareMile scans them and shows the count and size before you start.
 - **Link + QR code + copy button** for every share. The **Relay** link is the default and works everywhere; Same Wi-Fi, IPv6 and **BDIX Transfer** (real IP only) links sit next to it.
 - **A browser page that needs no app**: thumbnails, folder browsing, search, image/video/audio/PDF/text preview, per-file download, folder ZIP, "Download all", and multi-select ZIP. It works on phones too.
 - **Link previews**: paste a link in Messenger, WhatsApp, Telegram or Discord and it shows a card with the share's name and size.
@@ -70,10 +70,12 @@ It has two modes:
 - **Share Network (swarm)**: a private group under a secret code. Downloads pull 4 MB pieces from the host *and* other members in parallel. SHA-256 verification means a member can't send you a corrupt or fake file. Pause, resume or delete each download, even after a restart.
 - **Hosts stay in control**: add or remove folders and single files, rename the network, and choose how members connect (Automatic, Relay, BDIX Transfer, Same Wi-Fi, IPv6). Members see changes within about 30 seconds.
 - **Sort file lists** by name, size or date modified.
+- **Chat**: talk to the people downloading your Quick Share (from the app or right in their browser, phones included), or use a **group chat** inside a Share Network. **@mentions** with name suggestions, **reply** to a specific message, and **reactions** (👍 ❤️ 😂 😮 😢 🙏 🔥 🎉). Messages stay on the sharer's / host's PC; nothing goes through an outside server.
 - **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart.
 - **Download with IDM** (shown when IDM is installed; opens IDM's normal download window for each file) or **Browser download**, if you prefer.
 - **New link / New code**: retire a link or a network code in one click. Anyone holding the old one loses access.
 - **Bookmarks**: save your favourite network codes; they stay in the app and connect in one click.
+- **Paste buttons** next to **Open** and **Join**, so a copied link or code goes in with one click.
 - **Files back to you**: let people drop files back to you from the share page.
 - **Live stats**: visitors, bytes sent, live speed.
 - **7 themes**: Pitch Black, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper. Text stays readable in all of them.
@@ -95,10 +97,11 @@ Prefer no installer? Grab **[ShareMile-Portable.exe](https://github.com/tasin-py
 ## Usage
 
 ### Send files to anyone (Quick Share)
-1. Open **Quick Share**, then **Add files** / **Add folder** (or paste a path).
+1. Open **Quick Share**, then **Add files** / **Add folder**, drag files and folders onto the page, or paste a path.
 2. Press **Start sharing**.
 3. Send the link (**Copy link**) or let them scan the QR code. They open it in any browser, preview, and download.
-4. Want to cut off the old link? Press **New link**. The old link and QR stop working immediately; send the new one to whoever should still have access.
+4. Press **Chat** on the share to talk with everyone who has the link. They chat from the browser page (the **Chat** button at the bottom right) or from the app.
+5. Want to cut off the old link? Press **New link**. The old link and QR stop working immediately; send the new one to whoever should still have access.
 
 <p align="center">
   <img src="docs/screenshots/web-share.png" alt="What the receiver sees in their browser" width="70%">
@@ -108,10 +111,11 @@ Prefer no installer? Grab **[ShareMile-Portable.exe](https://github.com/tasin-py
 ### Receive files
 People without the app just open the link in a browser. With the app it's faster and more reliable:
 
-1. Open **Receive** and paste the link (or a `SM-…` code, which joins that Share Network).
+1. Open **Receive** and paste the link (or a `SM-…` code, which joins that Share Network). The **Paste** button fills it in from the clipboard.
 2. ShareMile lists every file with its size. Tick what you want (or use the filter).
 3. Press **Download**. Files land in your download folder (*Settings → Downloads*) with their folders intact.
    Or press **Download with IDM** (IDM opens its usual download window for each file, so you can start or cancel it there), or **Browser download**.
+4. **Chat with sender** opens a chat with the person sharing. The **✕** closes the file list.
 
 Downloads use 8 connections at once and survive anything: pause and resume, a dropped connection, closing the app, even a crash. If the sender's relay link changes (their app restarted), paste their new link and the download continues.
 
@@ -125,8 +129,9 @@ Downloads use 8 connections at once and survive anything: pause and resume, a dr
 3. Members open **Network → Join with a code**, paste it, tick files and press **Download selected**. Sort the list by name, size or date modified.
 4. Each download has **Pause / Resume** and a **✕** button. ✕ on an unfinished download deletes its partial file; on a finished one it only clears it from the list (the file stays). Unfinished downloads are still listed after a restart.
 5. Keep *"Share what I download with other members"* on, and everyone gets faster.
-6. **Bookmark** a network with the bookmark icon (next to the code box, or on the network's card). Bookmarks stay in the app even after you leave, with a one-click **Connect**. Click the icon again to remove it.
-7. Hosts can press the red **New code** button to replace the secret code. Everyone who had the old code, including members who already joined, loses access until they get the new one; ShareMile warns you before doing it, and old members see *"The host replaced this network's secret code"*.
+6. **Group chat** (on the network's card) is a chat room for the host and every member: type `@` to mention someone, hover a message to **reply** or **react**.
+7. **Bookmark** a network with the bookmark icon (next to the code box, or on the network's card). Bookmarks stay in the app even after you leave, with a one-click **Connect**. Click the icon again to remove it.
+8. Hosts can press the red **New code** button to replace the secret code. Everyone who had the old code, including members who already joined, loses access until they get the new one; ShareMile warns you before doing it, and old members see *"The host replaced this network's secret code"*. The group chat starts fresh with the new code.
 
 **For hosts:**
 - **Members connect via** picks how members reach you. **Automatic** (default) puts the relay plus every direct address in the code. **Relay** works anywhere. **BDIX Transfer** needs a real IP. **Same Wi-Fi / LAN only** keeps the network local. After changing it, send the updated code to new members.
@@ -208,15 +213,24 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.3.0
+.\build.ps1 -Version 1.4.0
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.3.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.4.0\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.4.0 (2026-11-21)
+- New: chat. Quick Share has a chat between the sharer and everyone with the link (in the app and on the browser page, phones included); each Share Network has a group chat for the host and members.
+- New: @mentions with name suggestions, replies to a specific message, and emoji reactions in chats. Unread badges show new messages.
+- New: drag and drop files and folders anywhere on the Quick Share page (and on Network → Host a network).
+- New: Paste buttons next to Open (Receive) and Join (Network).
+- New: a ✕ button closes the opened file list on the Receive page.
+- New: Settings → Chat sets your name in chats.
+- Fix: dropping a file on the app window no longer replaces the app's page.
+
 v1.3.0 (2026-11-21)
 - New: Pause / Resume for each Share Network download, and a ✕ button that deletes an unfinished download (partial file included) or clears a finished one from the list.
 - New: unfinished Share Network downloads are still listed after restarting the app, so they can be resumed or deleted.

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ShareMile</title>
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="chat.css">
 </head>
 <body>
 <div class="shell">
@@ -27,7 +28,7 @@
     <section class="page on" id="page-quick">
       <header class="ph">
         <h1>Quick Share</h1>
-        <p>Pick files or folders. The receiver opens the link or scans the QR code in any browser, anywhere in the world. No app needed on their side.</p>
+        <p>Pick files or folders, or drag them anywhere onto this page. The receiver opens the link or scans the QR code in any browser, anywhere in the world. No app needed on their side.</p>
       </header>
       <div class="warn fwwarn" hidden>Windows Firewall may block people on the internet from reaching your files. <button class="btn small" data-fw>Allow ShareMile through the firewall</button></div>
       <div class="card picker" id="qs-picker">
@@ -56,11 +57,13 @@
       <div class="card">
         <div class="row gap">
           <div class="pathin grow"><input id="rc-in" placeholder="Paste a link (http://…/s/…) or a code (SM-…)" spellcheck="false" autocomplete="off"></div>
+          <button class="btn" data-paste="rc-in" title="Paste from clipboard"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg>Paste</button>
           <button class="btn primary" id="rc-go">Open</button>
         </div>
       </div>
       <div class="card" id="rc-pick" hidden>
-        <div class="share-title"><h3 id="rc-name"></h3><span class="muted tnum" id="rc-sum"></span></div>
+        <div class="share-title"><div class="rc-head"><h3 id="rc-name"></h3><span class="muted tnum" id="rc-sum"></span></div>
+          <div class="row gap"><button class="btn small chat-btn" id="rc-chat" title="Chat with the sender"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat with sender<span class="badge"></span></button><button class="btn icon x" id="rc-close" title="Close this file list" aria-label="Close this file list">✕</button></div></div>
         <div class="row between wrap gap rc-tools">
           <label class="check"><input type="checkbox" id="rc-all" checked><span></span>Select all</label>
           <div class="row gap"><select id="rc-sort" class="sort-sel" title="Sort files"></select><div class="pathin rc-filter"><input id="rc-filter" placeholder="Filter files…" spellcheck="false"></div></div>
@@ -118,6 +121,7 @@
           <div class="row gap">
             <div class="pathin grow"><input id="jn-code" placeholder="Paste a secret code: SM-XXXXX-XXXXX-…" spellcheck="false" autocomplete="off"></div>
             <button class="btn icon bm" id="jn-bm" title="Bookmark this code" aria-label="Bookmark this code"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg></button>
+            <button class="btn" data-paste="jn-code" title="Paste from clipboard"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg>Paste</button>
             <button class="btn primary" id="jn-join">Join</button>
           </div>
         </div>
@@ -169,6 +173,14 @@
         </div>
       </div>
       <div class="card">
+        <h3>Chat</h3>
+        <div class="field">
+          <label>Your name in chat</label>
+          <div class="row gap"><div class="pathin grow"><input id="set-chatname" maxlength="32" placeholder="Shown next to your messages"></div><button class="btn" id="set-chatname-save">Save</button></div>
+          <small>Used in Quick Share chats and network group chats.</small>
+        </div>
+      </div>
+      <div class="card">
         <h3>Downloads</h3>
         <div class="field">
           <label>Save downloads and received files to</label>
@@ -213,7 +225,9 @@
     </section>
   </main>
 </div>
+<div class="dropzone" id="dropzone" hidden><div><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></svg><b>Drop to share</b><span>Files and folders are added to your share</span></div></div>
 <div class="toasts" id="toasts"></div>
+<script src="chat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
