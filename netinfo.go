@@ -245,6 +245,7 @@ func maybeAutoRelay() {
 	cfgMu.Lock()
 	auto := cfg.AutoRelay != nil && *cfg.AutoRelay
 	cfgMu.Unlock()
+	auto = auto || hostWantsRelay() // a network set to "Relay" always needs it
 	n := getNet()
 	busy := needsInternet()
 	if relayAuto && !busy && n.RelayState != "off" {

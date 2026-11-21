@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -22,6 +23,42 @@ type SFile struct {
 	Size int64     `json:"size"`
 	Mod  time.Time `json:"-"`
 	Kind string    `json:"kind"`
+	// Sender's file times (Unix ms), so receivers can keep them.
+	MTime int64 `json:"mtime,omitempty"`
+	CTime int64 `json:"ctime,omitempty"`
+}
+
+// fileTimes returns a file's modified and created times in Unix ms.
+func fileTimes(info fs.FileInfo) (mtime, ctime int64) {
+	mtime = info.ModTime().UnixMilli()
+	if d, ok := info.Sys().(*syscall.Win32FileAttributeData); ok {
+		ctime = time.Unix(0, d.CreationTime.Nanoseconds()).UnixMilli()
+	}
+	return
+}
+
+// setFileTimes applies the sender's created/modified times to a received file.
+func setFileTimes(path string, mtime, ctime int64) {
+	if mtime <= 0 && ctime <= 0 {
+		return
+	}
+	p, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return
+	}
+	h, err := syscall.CreateFile(p, syscall.FILE_WRITE_ATTRIBUTES, syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE|syscall.FILE_SHARE_DELETE, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_BACKUP_SEMANTICS, 0)
+	if err != nil {
+		return
+	}
+	defer syscall.CloseHandle(h)
+	ft := func(ms int64) *syscall.Filetime {
+		if ms <= 0 {
+			return nil
+		}
+		f := syscall.NsecToFiletime(ms * int64(time.Millisecond))
+		return &f
+	}
+	syscall.SetFileTime(h, ft(ctime), nil, ft(mtime))
 }
 
 // Meter tracks bytes and active transfers for a share.
@@ -139,7 +176,8 @@ func scanPaths(roots []string) ([]*SFile, int64, error) {
 		}
 		top = uniqueTop(top)
 		if !st.IsDir() {
-			files = append(files, &SFile{Rel: top, Abs: root, Size: st.Size(), Mod: st.ModTime(), Kind: fileKind(root)})
+			mt, ct := fileTimes(st)
+			files = append(files, &SFile{Rel: top, Abs: root, Size: st.Size(), Mod: st.ModTime(), Kind: fileKind(root), MTime: mt, CTime: ct})
 			total += st.Size()
 			continue
 		}
@@ -168,7 +206,8 @@ func scanPaths(roots []string) ([]*SFile, int64, error) {
 				return nil
 			}
 			rel, _ := filepath.Rel(root, p)
-			files = append(files, &SFile{Rel: top + "/" + filepath.ToSlash(rel), Abs: p, Size: info.Size(), Mod: info.ModTime(), Kind: fileKind(p)})
+			mt, ct := fileTimes(info)
+			files = append(files, &SFile{Rel: top + "/" + filepath.ToSlash(rel), Abs: p, Size: info.Size(), Mod: info.ModTime(), Kind: fileKind(p), MTime: mt, CTime: ct})
 			total += info.Size()
 			return nil
 		})

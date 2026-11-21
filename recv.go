@@ -17,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -38,6 +37,8 @@ type RecvFile struct {
 	Rel  string `json:"rel"`
 	Size int64  `json:"size"`
 	Kind string `json:"kind"`
+	MTime int64  `json:"mtime,omitempty"`
+	CTime int64  `json:"ctime,omitempty"`
 }
 
 type recvManifest struct {
@@ -493,6 +494,7 @@ func (fr *recvFileRun) finish() error {
 		return err
 	}
 	os.Remove(fr.part + ".json")
+	setFileTimes(final, fr.rf.MTime, fr.rf.CTime) // keep the sender's dates
 	t := fr.t
 	t.mu.Lock()
 	t.Done = append(t.Done, fr.rf.ID)
@@ -737,7 +739,10 @@ func idmPath() string {
 	return ""
 }
 
-// recvIDM queues the selected files in IDM (keeping folders) and starts the queue.
+// recvIDM hands each selected file to IDM as a normal download (keeping
+// folders). IDM shows its usual "Download File Info" window, so the user can
+// start or cancel it there; nothing is put in IDM's queue, so a cancelled
+// download is never restarted by the queue.
 func recvIDM(token string, ids []string) (int, error) {
 	exe := idmPath()
 	if exe == "" {
@@ -749,20 +754,20 @@ func recvIDM(token string, ids []string) (int, error) {
 	}
 	files := pickFiles(m, ids)
 	root := recvRoot(m)
-	run := func(args ...string) error {
-		c := exec.Command(exe, args...)
-		c.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-		return c.Run()
+	if len(files) > 20 {
+		return 0, errors.New("IDM opens one window per file. Select 20 files or fewer, or use Download (it's as fast as IDM)")
 	}
 	for _, f := range files {
 		dest := filepath.Join(root, cleanRel(f.Rel))
 		os.MkdirAll(filepath.Dir(dest), 0o755)
-		// /n = no questions, /a = add to queue without starting each one separately
-		if err := run("/d", fileURL(m.Base, token, f.ID), "/p", filepath.Dir(dest), "/f", filepath.Base(dest), "/n", "/a"); err != nil {
-			return 0, errors.New("IDM didn't accept the files: " + err.Error())
+		// No /n (silent) and no /a (queue): IDM shows its normal download window.
+		c := exec.Command(exe, "/d", fileURL(m.Base, token, f.ID), "/p", filepath.Dir(dest), "/f", filepath.Base(dest))
+		if err := c.Start(); err != nil {
+			return 0, errors.New("couldn't open IDM: " + err.Error())
 		}
+		go c.Wait()
+		time.Sleep(150 * time.Millisecond) // keep IDM's windows in order
 	}
-	run("/s") // start the main queue
 	return len(files), nil
 }
 

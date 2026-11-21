@@ -13,6 +13,8 @@ type HostedNetCfg struct {
 	Name   string   `json:"name"`
 	Roots  []string `json:"roots"`
 	Active bool     `json:"active"`
+	Method  string   `json:"method,omitempty"`  // how members reach this PC: auto|relay|public|lan|ipv6
+	Exclude []string `json:"exclude,omitempty"` // files (rel paths) the host removed from the network
 }
 
 // JoinedNetCfg is a persisted share network this PC has joined.

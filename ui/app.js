@@ -52,6 +52,39 @@ async function busyBtn(btn, fn) {
 
 let S = null; // last state
 
+// ------------------------------------------------------------- sorting
+const SORTS = [
+  ['name-asc', 'Name (A → Z)'], ['name-desc', 'Name (Z → A)'],
+  ['size-desc', 'Size (largest first)'], ['size-asc', 'Size (smallest first)'],
+  ['date-desc', 'Date modified (newest)'], ['date-asc', 'Date modified (oldest)'],
+];
+const sortOptions = () => SORTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+let sortMode = localStorage.getItem('sm-sort') || 'name-asc';
+function setSort(v) { sortMode = v; localStorage.setItem('sm-sort', v); $$('.sort-sel').forEach(s => s.value = v); }
+function sortFiles(list, mode = sortMode) {
+  const name = f => f.rel.toLowerCase();
+  const cmp = {
+    'name-asc': (a, b) => name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0,
+    'size-desc': (a, b) => b.size - a.size,
+    'date-desc': (a, b) => (b.mtime || 0) - (a.mtime || 0),
+  };
+  const [k, dir] = mode.split('-');
+  const base = cmp[k + '-' + (k === 'name' ? 'asc' : 'desc')];
+  const flip = (k === 'name') === (dir === 'desc');
+  return [...list].sort((a, b) => (flip ? -1 : 1) * base(a, b) || (name(a) < name(b) ? -1 : 1));
+}
+const fmtDate = ms => ms ? new Date(ms).toLocaleDateString(undefined, {year: 'numeric', month: 'short', day: 'numeric'}) : '';
+
+// How members reach a hosted network.
+const METHODS = [
+  ['auto', 'Automatic (Relay + every direct path)'],
+  ['relay', 'Relay (works anywhere)'],
+  ['public', 'BDIX Transfer (needs a real IP)'],
+  ['lan', 'Same Wi-Fi / LAN only'],
+  ['ipv6', 'IPv6 direct'],
+];
+const methodOptions = () => METHODS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+
 // ------------------------------------------------------------- navigation
 $$('.nav').forEach(b => b.onclick = () => {
   $('main').scrollTop = 0;
@@ -114,11 +147,16 @@ $('#qs-start').onclick = e => busyBtn(e.currentTarget, async () => {
   await refresh();
 });
 $('#hn-create').onclick = e => busyBtn(e.currentTarget, async () => {
-  await rpc('hostNet', {name: $('#hn-name').value, paths: picks.hn});
+  await rpc('hostNet', {name: $('#hn-name').value, paths: picks.hn, method: $('#hn-method').value});
   picks.hn = []; $('#hn-name').value = ''; await rescanPick('hn');
   toast('Network created. Share the secret code');
   await refresh();
 });
+
+$('#hn-method').innerHTML = methodOptions();
+$('#rc-sort').innerHTML = sortOptions();
+$('#rc-sort').value = sortMode;
+$('#rc-sort').onchange = e => { setSort(e.target.value); rcRender(); };
 
 // ------------------------------------------------------------- quick shares
 const shareSel = {}; // share id -> link kind
@@ -256,8 +294,32 @@ function renderHosted(list) {
           <span>Sent <b data-f="sent"></b></span>
           <span>Speed <b class="stat-speed" data-f="speed"></b></span>
         </div>
-        <div class="warn" data-f="err" hidden></div>`;
+        <div class="warn" data-f="err" hidden></div>
+        <div class="row gap wrap method-row">
+          <label class="method">Members connect via <select class="method-sel" data-act="method">${methodOptions()}</select></label>
+          <button class="btn small" data-act="edit">Edit files</button>
+        </div>
+        <div class="note method-note" data-f="mnote" hidden></div>
+        <div class="hn-edit" hidden>
+          <div class="row gap wrap"><div class="pathin grow"><input data-e="name" maxlength="60" placeholder="Network name"></div><button class="btn small" data-e="rename">Rename</button></div>
+          <div class="he-label">Folders and files in this network</div>
+          <div class="chips" data-e="roots"></div>
+          <div class="row gap wrap">
+            <button class="btn small" data-e="addfiles">Add files</button>
+            <button class="btn small" data-e="addfolder">Add folder</button>
+            <span class="muted he-hint">Members see changes within about 30 seconds.</span>
+          </div>
+          <div class="fb">
+            <div class="fb-head">
+              <input type="search" placeholder="Search files" data-e="q">
+              <select class="sort-sel" data-e="sort" title="Sort files">${sortOptions()}</select>
+              <button class="btn small" data-e="restoreall" hidden></button>
+            </div>
+            <div class="fb-list" data-e="files"><div class="empty">Loading…</div></div>
+          </div>
+        </div>`;
       $('[data-act=copy]', c).onclick = () => copy($('[data-f=code]', c).textContent);
+      wireHostEditor(c);
       $('[data-act=pause]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('pauseHostNet', {id: h.id, on: !c._active}); await refresh(); });
       $('[data-act=rescan]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('rescanHostNet', {id: h.id}); toast('Files rescanned'); await refresh(); });
       $('[data-act=renew]', c).onclick = e => {
@@ -281,6 +343,94 @@ function renderHosted(list) {
     f('speed').textContent = fmtSpeed(h.speed);
     f('err').hidden = !h.err;
     f('err').textContent = h.err || '';
+    c._h = h;
+    const msel = $('[data-act=method]', c);
+    if (document.activeElement !== msel) msel.value = h.method || 'auto';
+    f('mnote').hidden = !h.methodNote;
+    f('mnote').textContent = h.methodNote || '';
+    if (!$('.hn-edit', c).hidden) {
+      const key = h.count + ':' + h.total + ':' + h.excluded + ':' + (h.roots || []).join('|');
+      if (c._ek !== key) { c._ek = key; loadHostFiles(c); }
+    }
+  });
+}
+
+// Host-side editor: rename, add/remove folders and files, remove single files.
+function wireHostEditor(c) {
+  const e = k => $(`[data-e="${k}"]`, c);
+  const id = () => c.dataset.id;
+  const edit = async (args, msg) => { await rpc('editHostNet', {id: id(), ...args}); if (msg) toast(msg); c._ek = ''; await refresh(); };
+  $('[data-act=method]', c).onchange = ev => {
+    const v = ev.target.value;
+    rpc('setHostMethod', {id: id(), method: v}).then(() => { toast('Members now connect via ' + METHODS.find(m => m[0] === v)[1].replace(/ \(.*\)$/, '') + '. Send the updated code to new members'); refresh(); }).catch(er => toast(er.message, true));
+  };
+  $('[data-act=edit]', c).onclick = () => {
+    const ed = $('.hn-edit', c);
+    ed.hidden = !ed.hidden;
+    $('[data-act=edit]', c).textContent = ed.hidden ? 'Edit files' : 'Close editor';
+    if (!ed.hidden) { e('name').value = c._h.name; e('sort').value = sortMode; c._ek = ''; refresh(); }
+  };
+  e('rename').onclick = ev => busyBtn(ev.currentTarget, () => edit({name: e('name').value}, 'Network renamed'));
+  e('name').addEventListener('keydown', ev => { if (ev.key === 'Enter') e('rename').click(); });
+  const addRoots = folders => busyBtn(e(folders ? 'addfolder' : 'addfiles'), async () => {
+    const paths = await rpc('pick', {folders});
+    if (!paths || !paths.length) return;
+    await edit({setRoots: true, paths: [...(c._h.roots || []), ...paths]}, 'Added. Members will see the new files shortly');
+  });
+  e('addfiles').onclick = () => addRoots(false);
+  e('addfolder').onclick = () => addRoots(true);
+  e('q').oninput = () => drawHostFiles(c);
+  e('sort').onchange = ev => { setSort(ev.target.value); drawHostFiles(c); };
+  e('restoreall').onclick = ev => busyBtn(ev.currentTarget, () => edit({restoreAll: true}, 'Removed files are back in the network'));
+}
+
+async function loadHostFiles(c) {
+  try { c._files = await rpc('hostFiles', {id: c.dataset.id}); } catch { c._files = []; }
+  drawHostFiles(c);
+}
+
+function drawHostFiles(c) {
+  const e = k => $(`[data-e="${k}"]`, c);
+  const h = c._h, files = c._files || [];
+  // folder/file chips
+  const roots = h.roots || [];
+  const rk = roots.join('|');
+  if (e('roots').dataset.k !== rk) {
+    e('roots').dataset.k = rk;
+    e('roots').innerHTML = roots.map((p, i) => `<span class="chip" title="${esc(p)}"><span>${esc(p)}</span><button data-ri="${i}" aria-label="Remove from network" title="Remove from network">✕</button></span>`).join('');
+    $$('[data-ri]', e('roots')).forEach(b => b.onclick = () => {
+      if (roots.length === 1) { toast('A network needs at least one file or folder. Add another first, or delete the network', true); return; }
+      const p = roots[+b.dataset.ri];
+      if (!confirm(`Remove this from the network?\n\n${p}\n\nThe files stay on your PC. Members can no longer download them.`)) return;
+      busyBtn(b, async () => { await rpc('editHostNet', {id: c.dataset.id, setRoots: true, paths: roots.filter(x => x !== p)}); toast('Removed from the network'); c._ek = ''; await refresh(); });
+    });
+  }
+  const removed = files.filter(f => f.removed).length;
+  e('restoreall').hidden = !removed;
+  e('restoreall').textContent = `Restore removed (${removed})`;
+  const q = e('q').value.trim().toLowerCase();
+  const shown = sortFiles(files.filter(f => !q || f.rel.toLowerCase().includes(q)));
+  const list = e('files');
+  if (!files.length) { list.innerHTML = '<div class="empty">No files found in these folders</div>'; return; }
+  if (!shown.length) { list.innerHTML = '<div class="empty">No matching files</div>'; return; }
+  const top = shown.slice(0, 1500);
+  list.innerHTML = top.map((x, i) => {
+    const parts = x.rel.split('/'); const nm = parts.pop();
+    return `<div class="fb-row he${x.removed ? ' removed' : ''}">
+      <span class="nm" title="${esc(x.rel)}">${parts.length ? `<span class="dir">${esc(parts.join('/'))}/</span>` : ''}${esc(nm)}</span>
+      <span class="dt">${x.removed ? 'Removed' : fmtDate(x.mtime)}</span><span class="sz">${fmtBytes(x.size)}</span>
+      ${x.removed ? `<button class="btn small" data-fi="${i}" data-op="restore">Restore</button>` : `<button class="btn icon x" data-fi="${i}" data-op="remove" title="Remove from network" aria-label="Remove from network">✕</button>`}
+    </div>`;
+  }).join('') + (shown.length > top.length ? `<div class="empty">${shown.length - top.length} more. Use search to narrow down.</div>` : '');
+  $$('[data-fi]', list).forEach(b => b.onclick = () => {
+    const x = top[+b.dataset.fi], op = b.dataset.op;
+    busyBtn(b, async () => {
+      await rpc('editHostNet', {id: c.dataset.id, [op]: [x.rel]});
+      x.removed = op === 'remove';
+      toast(op === 'remove' ? 'Removed from the network. The file stays on your PC' : 'Back in the network');
+      drawHostFiles(c);
+      c._ek = ''; refresh();
+    });
   });
 }
 
@@ -310,8 +460,8 @@ function rcRender() {
   $('#rc-name').textContent = RC.name;
   $('#rc-sum').textContent = RC.files.length.toLocaleString() + (RC.files.length === 1 ? ' file · ' : ' files · ') + fmtBytes(RC.total);
   const q = $('#rc-filter').value.trim().toLowerCase();
-  const shown = RC.files.filter(f => !q || f.rel.toLowerCase().includes(q)).slice(0, 3000);
-  $('#rc-files').innerHTML = shown.map(f => `<label class="rc-file"><input type="checkbox" data-id="${f.id}" ${rcSel.has(f.id) ? 'checked' : ''}><span class="ic">${KIND_ICON[f.kind] || '📄'}</span><span class="nm" title="${esc(f.rel)}">${esc(f.rel)}</span><span class="sz tnum">${fmtBytes(f.size)}</span></label>`).join('')
+  const shown = sortFiles(RC.files.filter(f => !q || f.rel.toLowerCase().includes(q))).slice(0, 3000);
+  $('#rc-files').innerHTML = shown.map(f => `<label class="rc-file"><input type="checkbox" data-id="${f.id}" ${rcSel.has(f.id) ? 'checked' : ''}><span class="ic">${KIND_ICON[f.kind] || '📄'}</span><span class="nm" title="${esc(f.rel)}">${esc(f.rel)}</span><span class="dt tnum">${fmtDate(f.mtime)}</span><span class="sz tnum">${fmtBytes(f.size)}</span></label>`).join('')
     + (shown.length === 3000 ? '<div class="muted">Showing the first 3,000. Use the filter to find others.</div>' : '');
   $$('#rc-files input').forEach(cb => cb.onchange = () => { cb.checked ? rcSel.add(+cb.dataset.id) : rcSel.delete(+cb.dataset.id); rcSum(); });
   rcSum();
@@ -479,6 +629,7 @@ function renderJoined(list) {
         <div class="fb">
           <div class="fb-head">
             <input type="search" placeholder="Search files" data-act="search">
+            <select class="sort-sel" data-act="sort" title="Sort files">${sortOptions()}</select>
             <button class="btn small" data-act="all">Select all</button>
             <button class="btn small" data-act="none">Clear</button>
             <button class="btn small primary" data-act="dl">Download selected</button>
@@ -492,6 +643,8 @@ function renderJoined(list) {
       $('[data-act=bm]', c).onclick = e => busyBtn(e.currentTarget, async () => { await setBookmark(c._j.code, !c._j.bookmarked); });
       $('[data-act=seed]', c).onchange = e => rpc('setSeed', {id: j.id, on: e.target.checked});
       $('[data-act=search]', c).oninput = e => { jfilter[j.id] = e.target.value.toLowerCase(); c._fk = ''; renderJoined(S.joined); };
+      $('[data-act=sort]', c).value = sortMode;
+      $('[data-act=sort]', c).onchange = e => { setSort(e.target.value); $$('.jn-card').forEach(x => x._fk = ''); renderJoined(S.joined); };
       $('[data-act=all]', c).onclick = () => { visibleFiles(c._j).forEach(f => jsel[j.id].add(f.id)); c._fk = ''; renderJoined(S.joined); };
       $('[data-act=none]', c).onclick = () => { jsel[j.id].clear(); c._fk = ''; renderJoined(S.joined); };
       $('[data-act=dl]', c).onclick = e => busyBtn(e.currentTarget, async () => {
@@ -522,7 +675,7 @@ function renderJoined(list) {
 
     // file list (rebuilt only when it changes)
     const files = visibleFiles(j);
-    const fk = (j.files || []).length + ':' + files.map(x => x.id).join(',').length + ':' + [...jsel[j.id]].join(',') + ':' + Object.keys(j.have || {}).join(',');
+    const fk = sortMode + ':' + (j.files || []).length + ':' + files.map(x => x.id).join(',') + ':' + [...jsel[j.id]].join(',') + ':' + Object.keys(j.have || {}).join(',');
     if (c._fk !== fk) {
       c._fk = fk;
       const list = $('.fb-list', c);
@@ -534,7 +687,7 @@ function renderJoined(list) {
           const parts = x.rel.split('/'); const nm = parts.pop();
           return `<label class="fb-row"><input type="checkbox" data-id="${x.id}" ${jsel[j.id].has(x.id) ? 'checked' : ''}>
             <span class="nm" title="${esc(x.rel)}">${parts.length ? `<span class="dir">${esc(parts.join('/'))}/</span>` : ''}${esc(nm)}</span>
-            <span class="tag">${j.have && j.have[x.id] ? 'SAVED' : ''}</span><span class="sz">${fmtBytes(x.size)}</span></label>`;
+            <span class="tag">${j.have && j.have[x.id] ? 'SAVED' : ''}</span><span class="dt">${fmtDate(x.mtime)}</span><span class="sz">${fmtBytes(x.size)}</span></label>`;
         }).join('') + (files.length > shown.length ? `<div class="empty">${files.length - shown.length} more. Use search to narrow down.</div>` : '');
         $$('input[data-id]', list).forEach(cb => cb.onchange = () => { cb.checked ? jsel[j.id].add(cb.dataset.id) : jsel[j.id].delete(cb.dataset.id); c._fk = ''; });
       }
@@ -552,28 +705,40 @@ function renderJoined(list) {
         if (!el) {
           el = document.createElement('div');
           el.className = 'task'; el.dataset.id = t.file.id;
-          el.innerHTML = `<span class="nm"></span><span class="meta"></span><div class="bar"><i></i></div><div class="row gap" style="grid-column:1/-1"><button class="btn small" data-act="x">Cancel</button></div>`;
+          el.innerHTML = `<span class="nm"></span><span class="meta"></span><div class="bar"><i></i></div>
+            <div class="row gap task-acts" style="grid-column:1/-1">
+              <button class="btn small" data-act="toggle"></button>
+              <button class="btn small" data-act="show">Show in folder</button>
+              <button class="btn icon x" data-act="rm" title="Delete download" aria-label="Delete download">✕</button>
+            </div>`;
+          const fid = t.file.id;
+          $('[data-act=toggle]', el).onclick = ev => busyBtn(ev.currentTarget, async () => {
+            await rpc(el._running ? 'pauseDl' : 'download', {id: j.id, fileIds: [fid]});
+            await refresh();
+          });
+          $('[data-act=show]', el).onclick = () => rpc('openPath', {path: el._path});
+          $('[data-act=rm]', el).onclick = ev => {
+            const done = el._state === 'done';
+            if (!done && !confirm('Delete this download?\n\nThe unfinished file is deleted from your PC.')) return;
+            busyBtn(ev.currentTarget, async () => { await rpc('removeDl', {id: j.id, fileIds: [fid]}); toast(done ? 'Removed from the list. The file stays in your folder' : 'Download deleted'); await refresh(); });
+          };
           tb.append(el);
         }
         $('.nm', el).textContent = t.file.rel;
         $('.nm', el).title = t.file.rel;
         const pct = t.state === 'done' ? 100 : t.file.size ? Math.min(100, t.done / t.file.size * 100) : 0;
-        const label = {queued: 'Queued', preparing: 'Preparing…', downloading: `${pct.toFixed(1)}% · ${fmtSpeed(t.speed)} · ${t.sources} source${t.sources > 1 ? 's' : ''}`, done: 'Done · ' + fmtBytes(t.file.size), error: 'Failed', cancelled: 'Cancelled'}[t.state] || t.state;
+        const label = {queued: 'Queued', preparing: 'Preparing…', downloading: `${pct.toFixed(1)}% · ${fmtSpeed(t.speed)} · ${t.sources} source${t.sources > 1 ? 's' : ''}`, paused: `Paused · ${pct.toFixed(1)}%`, done: 'Done · ' + fmtBytes(t.file.size), error: 'Failed', cancelled: 'Cancelled'}[t.state] || t.state;
         $('.meta', el).textContent = label;
         $('.bar', el).classList.toggle('indet', t.state === 'preparing' || t.state === 'queued');
         $('.bar i', el).style.width = pct + '%';
-        const act = $('[data-act=x]', el);
         const running = t.state === 'downloading' || t.state === 'preparing' || t.state === 'queued';
-        const wantMode = running ? 'cancel' : t.state === 'done' ? 'show' : 'retry';
-        if (act.dataset.mode !== wantMode) {
-          act.dataset.mode = wantMode;
-          act.textContent = {cancel: 'Cancel', show: 'Show in folder', retry: 'Retry'}[wantMode];
-        }
-        act.onclick = () => {
-          if (wantMode === 'cancel') rpc('cancel', {id: j.id, fileIds: [t.file.id]});
-          else if (wantMode === 'show') rpc('openPath', {path: t.path});
-          else rpc('download', {id: j.id, fileIds: [t.file.id]}).then(refresh);
-        };
+        el._running = running; el._state = t.state; el._path = t.path;
+        const tg = $('[data-act=toggle]', el);
+        tg.hidden = t.state === 'done';
+        const tl = running ? 'Pause' : t.state === 'paused' ? 'Resume' : 'Retry';
+        if (tg.textContent !== tl && !tg.disabled) tg.textContent = tl;
+        $('[data-act=show]', el).hidden = t.state !== 'done';
+        $('[data-act=rm]', el).title = t.state === 'done' ? 'Remove from list (the file stays)' : 'Delete download';
         el.title = t.err || '';
       });
     }
@@ -582,7 +747,7 @@ function renderJoined(list) {
 
 function visibleFiles(j) {
   const q = jfilter[j.id] || '';
-  return (j.files || []).filter(f => !q || f.rel.toLowerCase().includes(q));
+  return sortFiles((j.files || []).filter(f => !q || f.rel.toLowerCase().includes(q)));
 }
 
 // ------------------------------------------------------------- settings

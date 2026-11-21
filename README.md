@@ -41,7 +41,11 @@
 
 ## What it does
 
-ShareMile turns your PC into a tiny, private file server for exactly the files you pick. Nothing is uploaded anywhere first: the receiver downloads straight from your machine, so the only speed limit is the two internet connections. Between BDIX-connected ISPs in Bangladesh that means full local (BDIX) speed. Abroad, you get whatever your connections allow.
+ShareMile turns your PC into a tiny, private file server for exactly the files you pick. Nothing is uploaded to a cloud drive first: the receiver downloads from your machine while you share.
+
+**It works through a relay, on any connection.** Every link goes through a free, encrypted Cloudflare relay by default, so it opens from any country, on any ISP, with no router setup. Most home connections in Bangladesh share one IP between many customers (no "real IP"), and the relay is what makes sharing work there.
+
+**Have a real IP? Then it's BDIX fast.** If your ISP gives you a real (public) IP, ShareMile can also send directly from your PC at full line speed (BDIX speed between Bangladeshi ISPs). This is an optional bonus: one click on **BDIX Transfer** tells you whether your connection supports it.
 
 It has two modes:
 
@@ -56,18 +60,18 @@ It has two modes:
 ## Features
 
 - **Pick files or folders**, or paste a path. ShareMile scans them and shows the count and size before you start.
-- **Link + QR code + copy button** for every share. **Relay** is the default (works on any connection); **BDIX Transfer**, IPv6 and LAN links sit next to it.
+- **Link + QR code + copy button** for every share. The **Relay** link is the default and works everywhere; Same Wi-Fi, IPv6 and **BDIX Transfer** (real IP only) links sit next to it.
 - **A browser page that needs no app**: thumbnails, folder browsing, search, image/video/audio/PDF/text preview, per-file download, folder ZIP, "Download all", and multi-select ZIP. It works on phones too.
 - **Link previews**: paste a link in Messenger, WhatsApp, Telegram or Discord and it shows a card with the share's name and size.
-- **BDIX Transfer check**: one click tests from the internet whether direct links can reach you. It tells you plainly if your ISP hasn't given you a real IP, or exactly what to forward in your router if it has.
-- **Full-speed transfers**: no relay in the direct path, big socket buffers, and HTTP range support, so IDM, ADM and browsers can resume and use multiple connections.
-- **Works across the internet**:
-  - opens your router port automatically with **UPnP**
-  - uses **IPv6** when your ISP provides it
-  - starts a free **Cloudflare relay** automatically when you share, so links open from any country even without a real IP (CGNAT)
-- **Share Network (swarm)**: a private group under a secret code. Downloads pull 4 MB pieces from the host *and* other members in parallel. SHA-256 verification means a member can't send you a corrupt or fake file. Interrupted downloads resume where they stopped.
+- **Works across the internet, out of the box**: a free **Cloudflare relay** starts by itself when you share, so links open from any country even without a real IP (CGNAT). People on your Wi-Fi get a direct LAN link too.
+- **Optional BDIX speed** (real IP only): one click on **BDIX Transfer** tests from the internet whether direct links reach you. It says plainly if your ISP hasn't given you a real IP, or exactly what to forward in your router if it has. UPnP opens the port automatically when your router allows it, and IPv6 is used when your ISP provides it.
+- **Resumable transfers**: HTTP range support, so the built-in downloader, IDM, ADM and browsers can resume and use multiple connections.
+- **File dates kept**: received files keep the sender's created and modified dates (in-app downloads and Share Network; ZIP downloads keep modified dates).
+- **Share Network (swarm)**: a private group under a secret code. Downloads pull 4 MB pieces from the host *and* other members in parallel. SHA-256 verification means a member can't send you a corrupt or fake file. Pause, resume or delete each download, even after a restart.
+- **Hosts stay in control**: add or remove folders and single files, rename the network, and choose how members connect (Automatic, Relay, BDIX Transfer, Same Wi-Fi, IPv6). Members see changes within about 30 seconds.
+- **Sort file lists** by name, size or date modified.
 - **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart.
-- **Download with IDM** (shown when IDM is installed) or **Browser download**, if you prefer.
+- **Download with IDM** (shown when IDM is installed; opens IDM's normal download window for each file) or **Browser download**, if you prefer.
 - **New link / New code**: retire a link or a network code in one click. Anyone holding the old one loses access.
 - **Bookmarks**: save your favourite network codes; they stay in the app and connect in one click.
 - **Files back to you**: let people drop files back to you from the share page.
@@ -107,7 +111,7 @@ People without the app just open the link in a browser. With the app it's faster
 1. Open **Receive** and paste the link (or a `SM-…` code, which joins that Share Network).
 2. ShareMile lists every file with its size. Tick what you want (or use the filter).
 3. Press **Download**. Files land in your download folder (*Settings → Downloads*) with their folders intact.
-   Or press **Download with IDM** to queue them in Internet Download Manager, or **Browser download**.
+   Or press **Download with IDM** (IDM opens its usual download window for each file, so you can start or cancel it there), or **Browser download**.
 
 Downloads use 8 connections at once and survive anything: pause and resume, a dropped connection, closing the app, even a crash. If the sender's relay link changes (their app restarted), paste their new link and the download continues.
 
@@ -118,24 +122,31 @@ Downloads use 8 connections at once and survive anything: pause and resume, a dr
 ### Share a library with a group (Share Network)
 1. **Network → Host a network**: name it, add files/folders, then **Create network**.
 2. Send members the **secret code**.
-3. Members open **Network → Join with a code**, paste it, tick files and press **Download selected**.
-4. Keep *"Share what I download with other members"* on, and everyone gets faster.
-5. **Bookmark** a network with the bookmark icon (next to the code box, or on the network's card). Bookmarks stay in the app even after you leave, with a one-click **Connect**. Click the icon again to remove it.
-6. Hosts can press the red **New code** button to replace the secret code. Everyone who had the old code, including members who already joined, loses access until they get the new one; ShareMile warns you before doing it, and old members see *"The host replaced this network's secret code"*.
+3. Members open **Network → Join with a code**, paste it, tick files and press **Download selected**. Sort the list by name, size or date modified.
+4. Each download has **Pause / Resume** and a **✕** button. ✕ on an unfinished download deletes its partial file; on a finished one it only clears it from the list (the file stays). Unfinished downloads are still listed after a restart.
+5. Keep *"Share what I download with other members"* on, and everyone gets faster.
+6. **Bookmark** a network with the bookmark icon (next to the code box, or on the network's card). Bookmarks stay in the app even after you leave, with a one-click **Connect**. Click the icon again to remove it.
+7. Hosts can press the red **New code** button to replace the secret code. Everyone who had the old code, including members who already joined, loses access until they get the new one; ShareMile warns you before doing it, and old members see *"The host replaced this network's secret code"*.
+
+**For hosts:**
+- **Members connect via** picks how members reach you. **Automatic** (default) puts the relay plus every direct address in the code. **Relay** works anywhere. **BDIX Transfer** needs a real IP. **Same Wi-Fi / LAN only** keeps the network local. After changing it, send the updated code to new members.
+- **Edit files** lets you rename the network, add files or folders, remove a whole folder, or remove single files with ✕ (they stay on your PC). **Restore removed** brings them back.
 
 <p align="center">
   <img src="docs/screenshots/app-network-join.png" alt="Joined network with file browser and downloads" width="80%">
 </p>
 
 ### Which link should I send?
+**Send the Relay link.** It's picked for you, works on every connection, and is all most people ever need.
+
 | Link | When it works | Speed |
 |---|---|---|
-| **Relay** *(default)* | Always, on any connection | Depends on Cloudflare, usually tens of Mbit/s |
-| **BDIX Transfer** | You have a **real IP** and the port is open (UPnP or a manual forward). Click the tab to test it | Full line speed, BDIX speed inside BD |
+| **Relay** *(default, recommended)* | Always, on any connection, from any country | Typically ~9–10 MB/s, set by Cloudflare's free tunnel |
+| **Same Wi-Fi / LAN** | The receiver is on your Wi-Fi | Fastest |
+| **BDIX Transfer** *(bonus)* | Only if your ISP gives you a **real IP** and the port is open (UPnP or a manual forward). Click the tab to test it | Full line speed, BDIX speed inside BD |
 | **Internet IPv6** | Both sides have IPv6 | Full line speed |
-| **Same Wi-Fi / LAN** | Only on your local network | Fastest |
 
-Clicking **BDIX Transfer** tests your connection from the internet (via [portchecker.io](https://portchecker.io), which only sees your public IP and the port number). It shows **[Real IP Not enabled]** if your ISP shares one IP between customers (CGNAT); then ask your ISP for a real IP (most BD ISPs offer one). If you do have a real IP, it shows exactly which port to forward.
+No real IP? Nothing is missing: the relay covers you. Clicking **BDIX Transfer** tests your connection from the internet (via [portchecker.io](https://portchecker.io), which only sees your public IP and the port number). It shows **[Real IP Not enabled]** if your ISP shares one IP between customers (CGNAT); then ask your ISP for a real IP (most BD ISPs offer one). If you do have a real IP, it shows exactly which port to forward.
 
 > **Testing it yourself?** Open the link on your phone with **Wi-Fi off** (mobile data). Many routers can't open your own public IP from inside your own network, even when it works for everyone outside.
 
@@ -197,15 +208,25 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.2.0
+.\build.ps1 -Version 1.3.0
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.2.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.3.0\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.3.0 (2026-11-21)
+- New: Pause / Resume for each Share Network download, and a ✕ button that deletes an unfinished download (partial file included) or clears a finished one from the list.
+- New: unfinished Share Network downloads are still listed after restarting the app, so they can be resumed or deleted.
+- New: sort file lists by name, size or date modified (Share Network and Receive).
+- New: "Members connect via" for hosted networks: Automatic, Relay, BDIX Transfer, Same Wi-Fi / LAN only, or IPv6.
+- New: hosts can edit a network: rename it, add files or folders, remove folders or single files, and restore removed ones. Members pick up changes within about 30 seconds.
+- New: received files keep the sender's created and modified dates.
+- Fix: "Download with IDM" opens IDM's normal download window for each file instead of adding them silently to IDM's queue, so cancelling in IDM no longer re-adds the download.
+- README: explains that ShareMile works through the relay on any connection, with BDIX speed as a bonus for real-IP users.
+
 v1.2.0 (2026-11-21)
 - The portable download is now named ShareMile-Portable.exe (the installed app is still ShareMile.exe).
 - New: built-in downloader on the Receive page. Paste a link, tick files, press Download. 8 parallel connections, folders kept, pause/resume, and it resumes after a dropped connection, closing the app or a crash. Paste the sender's new link and an interrupted download continues.

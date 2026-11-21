@@ -35,12 +35,15 @@ type NFile struct {
 	Rel  string `json:"rel"`
 	Size int64  `json:"size"`
 	Kind string `json:"kind"`
+	MTime int64 `json:"mtime,omitempty"` // sender's modified time, Unix ms
+	CTime int64 `json:"ctime,omitempty"` // sender's created time, Unix ms
 }
 
 type Manifest struct {
 	Name  string   `json:"name"`
 	Files []*NFile `json:"files"`
 	Total int64    `json:"total"`
+	Rev   int64    `json:"rev"` // changes whenever the host edits the file list
 }
 
 type PeerInfo struct {
@@ -95,28 +98,232 @@ func fileNetID(f *SFile) string {
 }
 
 func (h *HostNet) rescan() {
-	files, total, err := scanPaths(h.cfg.Roots)
+	cfgMu.Lock()
+	roots := append([]string(nil), h.cfg.Roots...)
+	name := h.cfg.Name
+	excl := map[string]bool{}
+	for _, r := range h.cfg.Exclude {
+		excl[r] = true
+	}
+	cfgMu.Unlock()
+	files, _, err := scanPaths(roots)
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	rev := time.Now().UnixMilli()
 	if err != nil {
 		h.scanErr = err.Error()
-		h.man = &Manifest{Name: h.cfg.Name}
+		h.man = &Manifest{Name: name, Rev: rev}
 		h.files = map[string]*SFile{}
 		return
 	}
 	h.scanErr = ""
-	m := &Manifest{Name: h.cfg.Name, Total: total}
+	m := &Manifest{Name: name, Rev: rev}
 	fm := map[string]*SFile{}
 	for _, f := range files {
+		if excl[f.Rel] {
+			continue
+		}
 		id := fileNetID(f)
 		fm[id] = f
-		m.Files = append(m.Files, &NFile{ID: id, Rel: f.Rel, Size: f.Size, Kind: f.Kind})
+		m.Total += f.Size
+		m.Files = append(m.Files, &NFile{ID: id, Rel: f.Rel, Size: f.Size, Kind: f.Kind, MTime: f.MTime, CTime: f.CTime})
 	}
 	h.files, h.man = fm, m
 }
 
+func (h *HostNet) method() string {
+	cfgMu.Lock()
+	defer cfgMu.Unlock()
+	if h.cfg.Method == "" {
+		return "auto"
+	}
+	return h.cfg.Method
+}
+
 func (h *HostNet) code() string {
-	return encodeCode(NetCode{Key: h.key, Endpoints: selfEndpoints(true)})
+	return encodeCode(NetCode{Key: h.key, Endpoints: methodEndpoints(h.method())})
+}
+
+// methodEndpoints keeps only the addresses for the connection method the host picked.
+// Same-Wi-Fi members still find the host through LAN discovery whatever is picked.
+func methodEndpoints(method string) []string {
+	all := selfEndpoints(true)
+	if method == "auto" {
+		return all
+	}
+	n := getNet()
+	var out []string
+	for _, e := range all {
+		host := e
+		if h, _, err := net.SplitHostPort(e); err == nil {
+			host = strings.Trim(h, "[]")
+		}
+		ip := net.ParseIP(host)
+		switch method {
+		case "relay":
+			if n.RelayURL != "" && e == n.RelayURL {
+				out = append(out, e)
+			}
+		case "public":
+			if ip != nil && host == n.PublicIP {
+				out = append(out, e)
+			}
+		case "ipv6":
+			if ip != nil && ip.To4() == nil {
+				out = append(out, e)
+			}
+		case "lan":
+			if ip != nil && ip.To4() != nil && ip.IsPrivate() {
+				out = append(out, e)
+			}
+		}
+	}
+	return out
+}
+
+// methodStatus explains, for the host's card, whether the picked method works right now.
+func methodStatus(method string) string {
+	n := getNet()
+	switch method {
+	case "relay":
+		switch n.RelayState {
+		case "on":
+			if n.RelayURL != "" {
+				return ""
+			}
+		case "error":
+			return "The relay failed to start: " + n.RelayErr
+		}
+		return "Starting the relay… The code updates when it's ready."
+	case "public":
+		if n.PublicIP == "" {
+			return "No public IP detected yet."
+		}
+		if n.RealIP == "no" {
+			return "No Real IP Found. Members on the internet can't reach you directly. Pick Relay, or ask your ISP for a real IP."
+		}
+		if !n.PublicOK {
+			return "Your port isn't open yet. Forward TCP " + itoa(publicPort) + " on your router (or enable UPnP), then press Re-check network in Settings."
+		}
+	case "ipv6":
+		if n.IPv6 == "" {
+			return "This PC has no internet IPv6 address."
+		}
+	case "lan":
+		if len(n.LanIPs) == 0 {
+			return "Not connected to a local network."
+		}
+		return "Only members on the same Wi-Fi / LAN can connect."
+	}
+	return ""
+}
+
+// hostWantsRelay is true when a running network was set to use the relay.
+func hostWantsRelay() bool {
+	swarmMu.RLock()
+	defer swarmMu.RUnlock()
+	for _, h := range hosted {
+		if h.cfg.Active && h.method() == "relay" {
+			return true
+		}
+	}
+	return false
+}
+
+// hostFiles lists every file under the network's folders, marking the ones the host removed.
+func (h *HostNet) hostFiles() ([]map[string]any, error) {
+	cfgMu.Lock()
+	roots := append([]string(nil), h.cfg.Roots...)
+	excl := map[string]bool{}
+	for _, r := range h.cfg.Exclude {
+		excl[r] = true
+	}
+	cfgMu.Unlock()
+	files, _, err := scanPaths(roots)
+	if err != nil {
+		return []map[string]any{}, nil
+	}
+	out := make([]map[string]any, 0, len(files))
+	for _, f := range files {
+		out = append(out, map[string]any{"rel": f.Rel, "size": f.Size, "kind": f.Kind, "mtime": f.MTime, "removed": excl[f.Rel]})
+	}
+	return out, nil
+}
+
+// editHostNet renames the network, replaces its folders/files, and removes or
+// restores single files. Members see the new list within ~30 seconds.
+func editHostNet(id, name string, roots []string, remove, restore []string, restoreAll bool) error {
+	swarmMu.RLock()
+	h := hosted[id]
+	swarmMu.RUnlock()
+	if h == nil {
+		return errors.New("network not found")
+	}
+	cfgMu.Lock()
+	if n := strings.TrimSpace(name); n != "" {
+		h.cfg.Name = n
+	}
+	if roots != nil {
+		var clean []string
+		for _, p := range roots {
+			p = strings.Trim(strings.TrimSpace(p), `"`)
+			if p == "" {
+				continue
+			}
+			if _, err := os.Stat(p); err != nil {
+				cfgMu.Unlock()
+				return errors.New("can't find: " + p)
+			}
+			if !contains(clean, filepath.Clean(p)) {
+				clean = append(clean, filepath.Clean(p))
+			}
+		}
+		if len(clean) == 0 {
+			cfgMu.Unlock()
+			return errors.New("a network needs at least one file or folder. Delete the network instead")
+		}
+		h.cfg.Roots = clean
+	}
+	ex := map[string]bool{}
+	if !restoreAll {
+		for _, r := range h.cfg.Exclude {
+			ex[r] = true
+		}
+	}
+	for _, r := range remove {
+		ex[r] = true
+	}
+	for _, r := range restore {
+		delete(ex, r)
+	}
+	h.cfg.Exclude = h.cfg.Exclude[:0]
+	for r := range ex {
+		h.cfg.Exclude = append(h.cfg.Exclude, r)
+	}
+	sort.Strings(h.cfg.Exclude)
+	saveConfigLocked()
+	cfgMu.Unlock()
+	h.rescan()
+	return nil
+}
+
+func setHostNetMethod(id, method string) error {
+	switch method {
+	case "auto", "relay", "public", "lan", "ipv6":
+	default:
+		return errors.New("unknown connection method")
+	}
+	swarmMu.RLock()
+	h := hosted[id]
+	swarmMu.RUnlock()
+	if h == nil {
+		return errors.New("network not found")
+	}
+	cfgMu.Lock()
+	h.cfg.Method = method
+	saveConfigLocked()
+	cfgMu.Unlock()
+	return nil
 }
 
 // selfEndpoints lists addresses others can use to reach this PC.
@@ -146,14 +353,17 @@ func newKey() []byte {
 	return k
 }
 
-func addHostedNet(name string, roots []string) (*HostNet, error) {
+func addHostedNet(name string, roots []string, method string) (*HostNet, error) {
 	if len(roots) == 0 {
 		return nil, errors.New("pick at least one file or folder")
 	}
 	if strings.TrimSpace(name) == "" {
 		name = shareName(roots)
 	}
-	c := &HostedNetCfg{Key: hex.EncodeToString(newKey()), Name: strings.TrimSpace(name), Roots: roots, Active: true}
+	if method == "" {
+		method = "auto"
+	}
+	c := &HostedNetCfg{Key: hex.EncodeToString(newKey()), Name: strings.TrimSpace(name), Roots: roots, Active: true, Method: method}
 	h := startHostedNet(c)
 	if h.scanErr != "" {
 		swarmMu.Lock()
@@ -349,7 +559,13 @@ func handleNetwork(w http.ResponseWriter, r *http.Request) {
 					others = append(others, x)
 				}
 			}
-			writeJSON(w, map[string]any{"peers": others})
+			h.mu.Lock()
+			rev := int64(0)
+			if h.man != nil {
+				rev = h.man.Rev
+			}
+			h.mu.Unlock()
+			writeJSON(w, map[string]any{"peers": others, "rev": rev})
 		default:
 			http.NotFound(w, r)
 		}
@@ -395,6 +611,8 @@ type DLTask struct {
 	Path    string  `json:"path"`
 	done    atomic.Int64
 	cancel  context.CancelFunc
+	paused  bool          // cancelled by Pause, not Cancel
+	ended   chan struct{} // closed when the download goroutine has released its files
 	mu      sync.Mutex
 	Meter
 }
@@ -581,6 +799,7 @@ func (j *JoinNet) connect() {
 			j.cfg.Name = r.man.Name
 			saveConfigLocked()
 			cfgMu.Unlock()
+			j.restorePartials()
 			j.announce(r.base, false)
 			return
 		}
@@ -621,13 +840,18 @@ func (j *JoinNet) announce(host string, leave bool) error {
 	defer resp.Body.Close()
 	var out struct {
 		Peers []*PeerInfo `json:"peers"`
+		Rev   int64       `json:"rev"`
 	}
 	if resp.StatusCode != 200 || json.NewDecoder(resp.Body).Decode(&out) != nil {
 		return errors.New("announce failed")
 	}
 	j.mu.Lock()
 	j.peers = out.Peers
+	stale := !leave && out.Rev != 0 && (j.man == nil || j.man.Rev != out.Rev)
 	j.mu.Unlock()
+	if stale {
+		go j.refreshManifest() // the host edited the file list
+	}
 	return nil
 }
 
@@ -656,6 +880,7 @@ func (j *JoinNet) refreshManifest() error {
 	code := j.cfg.Code
 	j.mu.Unlock()
 	syncBookmark(j.id, m.Name, code)
+	j.restorePartials()
 	return nil
 }
 
@@ -679,13 +904,22 @@ func (j *JoinNet) startDownloads(ids []string) int {
 			continue
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		t := &DLTask{File: f, State: "queued", cancel: cancel}
-		if _, ok := j.tasks[id]; !ok {
+		t := &DLTask{File: f, State: "queued", cancel: cancel, ended: make(chan struct{})}
+		var prev chan struct{}
+		if old := j.tasks[id]; old != nil {
+			t.done.Store(old.done.Load()) // keep showing progress while it resumes
+			prev = old.ended
+		} else {
 			j.order = append(j.order, id)
 		}
 		j.tasks[id] = t
 		n++
-		go j.runTask(ctx, t)
+		go func() {
+			if prev != nil {
+				<-prev // the paused run must finish saving its pieces first
+			}
+			j.runTask(ctx, t)
+		}()
 	}
 	return n
 }
@@ -695,6 +929,122 @@ func (j *JoinNet) cancelTask(id string) {
 	defer j.mu.Unlock()
 	if t := j.tasks[id]; t != nil && t.cancel != nil {
 		t.cancel()
+	}
+}
+
+// pauseTask stops a download but keeps its pieces, so Resume continues it.
+func (j *JoinNet) pauseTask(id string) {
+	j.mu.Lock()
+	t := j.tasks[id]
+	j.mu.Unlock()
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	running := t.State == "queued" || t.State == "preparing" || t.State == "downloading"
+	if running {
+		t.paused = true
+	}
+	t.mu.Unlock()
+	if running && t.cancel != nil {
+		t.cancel()
+	}
+}
+
+// destFor is where a network file is saved.
+func (j *JoinNet) destFor(f *NFile) string {
+	j.mu.Lock()
+	name := "ShareMile network"
+	if j.man != nil {
+		name = j.man.Name
+	} else if j.cfg.Name != "" {
+		name = j.cfg.Name
+	}
+	j.mu.Unlock()
+	cfgMu.Lock()
+	dir := cfg.DownloadDir
+	cfgMu.Unlock()
+	return filepath.Join(dir, safeName(name), cleanRel(f.Rel))
+}
+
+// removeTask stops a download and takes it off the list. Unfinished pieces are
+// deleted from disk; a finished file stays where it is.
+func (j *JoinNet) removeTask(id string) {
+	j.mu.Lock()
+	t := j.tasks[id]
+	j.mu.Unlock()
+	if t == nil {
+		return
+	}
+	if t.cancel != nil {
+		t.cancel()
+	}
+	if t.ended != nil {
+		select {
+		case <-t.ended:
+		case <-time.After(10 * time.Second):
+		}
+	}
+	if t.state() != "done" {
+		part := j.destFor(t.File) + ".smpart"
+		os.Remove(part)
+		os.Remove(part + ".json")
+	}
+	j.mu.Lock()
+	if j.tasks[id] == t {
+		delete(j.tasks, id)
+		for i, x := range j.order {
+			if x == id {
+				j.order = append(j.order[:i], j.order[i+1:]...)
+				break
+			}
+		}
+	}
+	j.mu.Unlock()
+}
+
+// restorePartials lists unfinished downloads left on disk (e.g. from before a
+// restart) as paused, so they can be resumed or deleted from the app.
+func (j *JoinNet) restorePartials() {
+	j.mu.Lock()
+	var files []*NFile
+	if j.man != nil {
+		for _, f := range j.man.Files {
+			if j.tasks[f.ID] == nil {
+				files = append(files, f)
+			}
+		}
+	}
+	j.mu.Unlock()
+	for _, f := range files {
+		part := j.destFor(f) + ".smpart"
+		if !fileExists(part) {
+			continue
+		}
+		var done int64
+		if b, err := os.ReadFile(part + ".json"); err == nil {
+			var st struct {
+				Size   int64  `json:"size"`
+				Pieces string `json:"pieces"`
+			}
+			if json.Unmarshal(b, &st) == nil && st.Size == f.Size {
+				bits, _ := base64.StdEncoding.DecodeString(st.Pieces)
+				n := int((f.Size + pieceSize - 1) / pieceSize)
+				for i := 0; i < n && i/8 < len(bits); i++ {
+					if bits[i/8]&(1<<(i%8)) != 0 {
+						done += pieceLen(f.Size, i)
+					}
+				}
+			}
+		}
+		t := &DLTask{File: f, State: "paused"}
+		t.done.Store(done)
+		j.mu.Lock()
+		if j.tasks[f.ID] == nil {
+			j.tasks[f.ID] = t
+			j.order = append(j.order, f.ID)
+		}
+		j.mu.Unlock()
 	}
 }
 
@@ -739,17 +1089,27 @@ type source struct {
 }
 
 func (j *JoinNet) runTask(ctx context.Context, t *DLTask) {
+	defer close(t.ended)
+	stopped := func() {
+		t.mu.Lock()
+		if t.paused {
+			t.State, t.Err = "paused", ""
+		} else {
+			t.State, t.Err = "cancelled", ""
+		}
+		t.mu.Unlock()
+	}
 	select {
 	case dlSem <- struct{}{}:
 	case <-ctx.Done():
-		t.set("cancelled", "")
+		stopped()
 		return
 	}
 	defer func() { <-dlSem }()
 	err := j.download(ctx, t)
 	switch {
 	case ctx.Err() != nil:
-		t.set("cancelled", "")
+		stopped()
 	case err != nil:
 		t.set("error", err.Error())
 	default:
@@ -777,12 +1137,9 @@ func cleanRel(rel string) string {
 }
 
 func (j *JoinNet) download(ctx context.Context, t *DLTask) error {
+	dest := j.destFor(t.File)
 	j.mu.Lock()
 	host := j.host
-	name := "ShareMile network"
-	if j.man != nil {
-		name = j.man.Name
-	}
 	var holders []*PeerInfo
 	for _, p := range j.peers {
 		if contains(p.Have, t.File.ID) && len(p.Endpoints) > 0 {
@@ -796,7 +1153,6 @@ func (j *JoinNet) download(ctx context.Context, t *DLTask) error {
 	t.set("preparing", "")
 	peerSrc := j.reachablePeers(ctx, holders)
 	f := t.File
-	dest := filepath.Join(cfg.DownloadDir, safeName(name), cleanRel(f.Rel))
 	os.MkdirAll(filepath.Dir(dest), 0o755)
 	part := dest + ".smpart"
 	statePath := part + ".json"
@@ -976,13 +1332,14 @@ func (j *JoinNet) download(ctx context.Context, t *DLTask) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return errors.New("connection lost. Press Download again to resume.")
+		return errors.New("connection lost. Press Resume to continue.")
 	}
 	os.Remove(statePath)
 	final := uniquePath(dest)
 	if err := os.Rename(part, final); err != nil {
 		return err
 	}
+	setFileTimes(final, f.MTime, f.CTime) // keep the host's file dates
 	t.mu.Lock()
 	t.Path = final
 	t.mu.Unlock()

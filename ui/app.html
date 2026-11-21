@@ -63,7 +63,7 @@
         <div class="share-title"><h3 id="rc-name"></h3><span class="muted tnum" id="rc-sum"></span></div>
         <div class="row between wrap gap rc-tools">
           <label class="check"><input type="checkbox" id="rc-all" checked><span></span>Select all</label>
-          <div class="pathin rc-filter"><input id="rc-filter" placeholder="Filter files…" spellcheck="false"></div>
+          <div class="row gap"><select id="rc-sort" class="sort-sel" title="Sort files"></select><div class="pathin rc-filter"><input id="rc-filter" placeholder="Filter files…" spellcheck="false"></div></div>
         </div>
         <div class="rc-files" id="rc-files"></div>
         <div class="row between wrap gap">
@@ -104,7 +104,12 @@
           <div class="pathin"><input id="hn-path" placeholder="…or paste a file/folder path and press Enter" spellcheck="false"></div>
           <div class="chips" id="hn-chips"></div>
           <div class="scan" id="hn-scan"></div>
-          <div class="row end"><button class="btn primary" id="hn-create" disabled>Create network</button></div>
+          <div class="row between wrap gap">
+            <label class="method">Members connect via
+              <select id="hn-method" class="method-sel"></select>
+            </label>
+            <button class="btn primary" id="hn-create" disabled>Create network</button>
+          </div>
         </div>
         <div id="hn-list" class="stack"></div>
       </div>

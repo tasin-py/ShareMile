@@ -89,6 +89,11 @@ type rpcArgs struct {
 	UseUPnP     *bool    `json:"useUpnp"`
 	LinkMode    string   `json:"linkMode"`
 	AutoRelay   *bool    `json:"autoRelay"`
+	Method      string   `json:"method"`
+	Remove      []string `json:"remove"`
+	Restore     []string `json:"restore"`
+	RestoreAll  bool     `json:"restoreAll"`
+	SetRoots    bool     `json:"setRoots"`
 }
 
 func handleRPC(w http.ResponseWriter, r *http.Request, method string) {
@@ -179,12 +184,38 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		}
 		return true, nil
 	case "hostNet":
-		h, err := addHostedNet(a.Name, a.Paths)
+		h, err := addHostedNet(a.Name, a.Paths, a.Method)
 		if err != nil {
 			return nil, err
 		}
 		go syncExposure()
 		return h.id, nil
+	case "hostFiles", "editHostNet", "setHostMethod":
+		swarmMu.RLock()
+		h := hosted[a.ID]
+		swarmMu.RUnlock()
+		if h == nil {
+			return nil, errors.New("network not found")
+		}
+		switch method {
+		case "hostFiles":
+			return h.hostFiles()
+		case "editHostNet":
+			var roots []string
+			if a.SetRoots {
+				roots = a.Paths
+				if roots == nil {
+					roots = []string{}
+				}
+			}
+			return true, editHostNet(a.ID, a.Name, roots, a.Remove, a.Restore, a.RestoreAll)
+		default:
+			if err := setHostNetMethod(a.ID, a.Method); err != nil {
+				return nil, err
+			}
+			go syncExposure()
+			return true, nil
+		}
 	case "removeHostNet":
 		removeHostedNet(a.ID)
 		go syncExposure()
@@ -221,7 +252,7 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		leaveNetwork(a.ID)
 		go syncExposure()
 		return true, nil
-	case "manifest", "download", "cancel", "clearDone", "setSeed", "reconnect":
+	case "manifest", "download", "cancel", "pauseDl", "removeDl", "clearDone", "setSeed", "reconnect":
 		swarmMu.RLock()
 		j := joined[a.ID]
 		swarmMu.RUnlock()
@@ -236,6 +267,14 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		case "cancel":
 			for _, id := range a.FileIDs {
 				j.cancelTask(id)
+			}
+		case "pauseDl":
+			for _, id := range a.FileIDs {
+				j.pauseTask(id)
+			}
+		case "removeDl":
+			for _, id := range a.FileIDs {
+				j.removeTask(id)
 			}
 		case "clearDone":
 			j.clearFinished()
@@ -476,7 +515,7 @@ func buildState() map[string]any {
 		h.mu.Unlock()
 		ho = append(ho, map[string]any{
 			"id": h.id, "name": h.cfg.Name, "code": h.code(), "count": count, "total": total, "roots": h.cfg.Roots,
-			"active": h.cfg.Active, "peers": len(h.livePeers()), "sent": h.bytes.Load(), "speed": h.Speed(), "err": scanErr,
+			"active": h.cfg.Active, "method": h.method(), "methodNote": methodStatus(h.method()), "excluded": len(h.cfg.Exclude), "peers": len(h.livePeers()), "sent": h.bytes.Load(), "speed": h.Speed(), "err": scanErr,
 		})
 	}
 	var jo []map[string]any
