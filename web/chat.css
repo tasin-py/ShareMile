@@ -1,13 +1,17 @@
-/* ShareMile chat drawer (app + share page). Uses the page's theme variables. */
-.smc{position:fixed;top:0;right:0;bottom:0;z-index:60;width:min(400px,100vw);display:flex;flex-direction:column;background:var(--card);border-left:1px solid var(--line);box-shadow:-18px 0 40px rgba(0,0,0,.28);color:var(--text);font-size:14px;animation:smc-in .18s ease-out}
+/* Hallmark · checked: 2026-11-22 · genre: modern-minimal (inferred) · shape: app screen · theme: brand
+ * waive 24b: compact chat density on a 2px sub-grid · built: the project · redesign: restyle · v2.0.0 */
+/* ShareMile chat drawer (app + share page). Uses the page's theme variables; these are fallbacks for the share page. */
+:root{--smc-shadow:-24px 0 60px -12px rgba(0,0,0,.45);--smc-pop:0 16px 40px -10px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.2);--smc-danger:#ff6b6b;--smc-font-display:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif}
+.smc{position:fixed;top:0;right:0;bottom:0;z-index:60;width:min(400px,100%);display:flex;flex-direction:column;background:var(--card);border-left:1px solid var(--line);box-shadow:inset 1px 0 0 var(--hi,transparent),var(--smc-shadow);color:var(--text);font-size:14px;animation:smc-in .22s cubic-bezier(.2,.7,.2,1)}
 @keyframes smc-in{from{transform:translateX(24px);opacity:0}}
 .smc[hidden]{display:none!important}
 .smc button{font:inherit;color:inherit;cursor:pointer}
-.smc-h{display:flex;align-items:center;gap:10px;padding:14px 14px 10px 16px;border-bottom:1px solid var(--line)}
+.smc :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.smc-h{display:flex;align-items:center;gap:10px;padding:16px 14px 12px 18px;border-bottom:1px solid var(--line)}
 .smc-t{flex:1;min-width:0;display:flex;flex-direction:column}
-.smc-t b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.smc-t b{font:600 16px/1.3 var(--smc-font-display);letter-spacing:-.005em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .smc-sub{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.smc-x{flex:none;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--card2)}
+.smc-x{flex:none;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--card2);transition:border-color .12s,background-color .12s}
 .smc-x:hover{border-color:var(--muted)}
 .smc-people{display:flex;gap:6px;overflow-x:auto;padding:8px 14px;border-bottom:1px solid var(--line);scrollbar-width:thin}
 .smc-people:empty{display:none}
@@ -15,7 +19,7 @@
 .smc-p.on{color:var(--text)}
 .smc-p i,.smc-ac i{width:7px;height:7px;border-radius:50%;background:var(--line);flex:none}
 .smc-p.on i,.smc-ac i.on{background:var(--acc)}
-.smc em{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--on-acc);background:var(--acc);padding:1px 6px;border-radius:6px;margin-left:4px}
+.smc em{font-style:normal;font-size:11px;font-weight:600;color:var(--acc);background:color-mix(in srgb,var(--acc) 15%,transparent);padding:1px 7px;border-radius:999px;margin-left:4px}
 .smc-list{flex:1;overflow-y:auto;padding:10px 12px 14px;display:flex;flex-direction:column;gap:2px;outline:none;scrollbar-width:thin}
 .smc-empty{margin:auto;color:var(--muted);text-align:center;padding:20px}
 .smc-day{align-self:center;font-size:11.5px;color:var(--muted);margin:12px 0 6px;padding:2px 10px;border-radius:999px;background:var(--card2)}
@@ -25,7 +29,7 @@
 .smc-who{display:flex;align-items:center;gap:6px;font-size:12px;margin:0 4px 3px;color:var(--muted)}
 .smc-who b{color:var(--text);font-weight:600}
 .smc-who em{margin-left:0}
-.smc-b{position:relative;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:7px 11px;line-height:1.45;word-break:break-word;min-width:44px}
+.smc-b{position:relative;background:var(--card2);border:1px solid var(--line);border-radius:16px;padding:8px 12px;line-height:1.45;word-break:break-word;min-width:44px}
 .smc-m.mine .smc-b{background:color-mix(in srgb,var(--acc) 16%,var(--card2));border-color:color-mix(in srgb,var(--acc) 35%,var(--line))}
 .smc-m.ping .smc-b{box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 55%,transparent)}
 .smc-m.hl .smc-b{animation:smc-hl 1.4s ease-out}
@@ -44,30 +48,30 @@
 .smc-r{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:999px;border:1px solid var(--line);background:var(--card2);font-size:13px}
 .smc-r b{font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
 .smc-r.on{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 15%,var(--card2))}
-.smc-new{position:absolute;left:50%;transform:translateX(-50%);bottom:86px;border:0;border-radius:999px;padding:6px 14px;background:var(--acc);color:var(--on-acc)!important;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.smc-new{position:absolute;left:50%;transform:translateX(-50%);bottom:86px;border:0;border-radius:999px;padding:6px 14px;background:var(--acc);color:var(--on-acc)!important;font-weight:600;box-shadow:var(--smc-pop)}
 .smc-reply{display:flex;align-items:center;gap:8px;margin:0 12px;padding:7px 10px;border-left:3px solid var(--acc);background:var(--card2);border-radius:8px 8px 0 0;font-size:12.5px}
 .smc-reply div{flex:1;min-width:0;display:flex;flex-direction:column}
 .smc-reply span{color:var(--muted)}
 .smc-reply q{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;quotes:none}
 .smc-reply button{border:0;background:none;width:26px;height:26px;border-radius:7px}
-.smc-ac{position:absolute;left:12px;right:12px;bottom:70px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:4px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:flex;flex-direction:column;max-height:240px;overflow:auto;z-index:2}
+.smc-ac{position:absolute;left:12px;right:12px;bottom:70px;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:4px;box-shadow:var(--smc-pop);display:flex;flex-direction:column;max-height:240px;overflow:auto;z-index:2}
 .smc-ac button{display:flex;align-items:center;gap:8px;border:0;background:none;text-align:left;padding:7px 10px;border-radius:8px}
 .smc-ac button.on,.smc-ac button:hover{background:var(--card2)}
 .smc-in{display:flex;align-items:flex-end;gap:8px;padding:10px 12px 14px;border-top:1px solid var(--line)}
 .smc-in[hidden],.smc-name[hidden]{display:none!important}
-.smc-in textarea{flex:1;resize:none;min-height:40px;max-height:140px;padding:9px 12px;border-radius:11px;border:1px solid var(--line);background:var(--card2);color:var(--text);font:inherit;line-height:1.4;outline:none}
-.smc-in textarea:focus{border-color:var(--acc)}
+.smc-in textarea{flex:1;resize:none;min-height:40px;max-height:140px;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--text);font:inherit;line-height:1.4;outline:none;transition:border-color .12s,box-shadow .12s}
+.smc-in textarea:focus{outline:2px solid var(--acc);outline-offset:-1px;box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 20%,transparent)}
 .smc-send{flex:none;width:42px;height:40px;border-radius:11px;border:0;background:var(--acc);color:var(--on-acc)!important;display:grid;place-items:center}
 .smc-send svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
 .smc-name{display:flex;flex-direction:column;gap:10px;padding:14px 16px 18px;border-top:1px solid var(--line)}
 .smc-name p{margin:0;line-height:1.4}
 .smc-name p span{color:var(--muted);font-size:12.5px}
 .smc-name input{height:40px;padding:0 12px;border-radius:11px;border:1px solid var(--line);background:var(--card2);color:var(--text);font:inherit;outline:none}
-.smc-name input:focus{border-color:var(--acc)}
+.smc-name input:focus{outline:2px solid var(--acc);outline-offset:-1px}
 .smc-btn{height:40px;border-radius:11px;border:0;background:var(--acc);color:var(--on-acc)!important;font-weight:600}
-.smc-err{margin:0 12px 6px;padding:6px 10px;border-radius:8px;background:color-mix(in srgb,#ff5d5d 16%,var(--card2));font-size:12.5px}
+.smc-err{margin:0 12px 6px;padding:6px 10px;border-radius:8px;background:color-mix(in srgb,var(--danger,var(--smc-danger)) 16%,var(--card2));font-size:12.5px}
 .smc-err[hidden]{display:none}
-.smc-pick{position:absolute;z-index:3;display:flex;gap:2px;padding:4px;border-radius:12px;background:var(--card);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.smc-pick{position:absolute;z-index:3;display:flex;gap:2px;padding:4px;border-radius:12px;background:var(--card);border:1px solid var(--line);box-shadow:var(--smc-pop)}
 .smc-pick[hidden]{display:none}
 .smc-pick button{width:34px;height:34px;border:0;border-radius:8px;background:none;font-size:19px}
 .smc-pick button:hover{background:var(--card2);transform:scale(1.12)}
@@ -75,3 +79,5 @@
 .chat-btn{position:relative}
 .chat-btn .badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--acc);color:var(--on-acc);font-size:11px;font-weight:700;line-height:18px;text-align:center;font-variant-numeric:tabular-nums}
 .chat-btn .badge:empty{display:none}
+@media (prefers-reduced-motion:reduce){.smc,.smc-m.hl .smc-b{animation:none}.smc-pick button:hover{transform:none}}
+.smc-send:active,.smc-btn:active,.smc-x:active,.smc-r:active{transform:translateY(1px)}

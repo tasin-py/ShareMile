@@ -70,7 +70,7 @@ It has two modes:
 - **Share Network (swarm)**: a private group under a secret code. Downloads pull 4 MB pieces from the host *and* other members in parallel. SHA-256 verification means a member can't send you a corrupt or fake file. Pause, resume or delete each download, even after a restart.
 - **Hosts stay in control**: add or remove folders and single files, rename the network, and choose how members connect (Automatic, Relay, BDIX Transfer, Same Wi-Fi, IPv6). Members see changes within about 30 seconds.
 - **Sort file lists** by name, size or date modified.
-- **Chat**: talk to the people downloading your Quick Share (from the app or right in their browser, phones included), or use a **group chat** inside a Share Network. **@mentions** with name suggestions, **reply** to a specific message, and **reactions** (👍 ❤️ 😂 😮 😢 🙏 🔥 🎉). Messages stay on the sharer's / host's PC; nothing goes through an outside server.
+- **Chat**: talk to the people downloading your Quick Share (from the app or right in their browser, phones included), or use a **group chat** inside a Share Network. **@mentions** with name suggestions, **reply** to a specific message, and **reactions** (👍 ❤️ 😂 😮 😢 🙏 🔥 🎉). Messages stay on the sharer's / host's PC; nothing goes through an outside server. When someone **@mentions you**, a soft chime plays (unless you're already looking at that chat); ordinary messages stay silent.
 - **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart.
 - **Download with IDM** (shown when IDM is installed; opens IDM's normal download window for each file) or **Browser download**, if you prefer.
 - **New link / New code**: retire a link or a network code in one click. Anyone holding the old one loses access.
@@ -82,7 +82,7 @@ It has two modes:
 - **Refresh** on a joined network asks the host to recheck its folders right away; hosts also pick up added, changed or deleted files by themselves.
 - **Files back to you**: let people drop files back to you from the share page.
 - **Live stats**: visitors, bytes sent, live speed.
-- **7 themes**: Pitch Black, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper. Text stays readable in all of them.
+- **7 themes**: Pitch Black, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper, with refined colours, soft depth and display headings. Text stays readable in all of them.
 - **One-click updates** from Settings or the About page, plus Buy Me a Coffee.
 - **Lightweight**: a single ~9 MB executable, about 25 MB of RAM for the sharing engine, and near-zero CPU when idle.
 
@@ -222,15 +222,20 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.5.0
+.\build.ps1 -Version 1.6.0
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.5.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.0\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.6.0 (2026-11-22)
+- New: a soft chime when someone @mentions you in a chat. It stays quiet when that chat is open in a focused window, and ordinary messages never make a sound.
+- New: a more premium look across the whole app. All seven themes have refined colours with their own shadows and highlights; headings use Segoe UI Variable Display; buttons, tabs, toggles, fields and the chat drawer are restyled, with clear focus rings and smoother motion (reduced when Windows asks for less motion).
+- Fixed: progress bars animate smoothly without resizing.
+
 v1.5.0 (2026-11-21)
 - New: Run in the background (on by default). Closing the window keeps ShareMile in the notification area; right-click its icon for Open, Pause sharing / Resume sharing and Exit. Opening ShareMile again brings the window back.
 - New: Pause sharing (tray menu, Settings → App, and a banner with Resume). Links and networks go offline, downloads pause, and Resume restarts exactly those downloads. Members see "The host paused sharing".

@@ -12,6 +12,45 @@
   };
   window.SMChat = SMChat;
 
+  // Mention chime: a short, quiet two-note tone. Only @mentions of you make a sound,
+  // and never while that chat is open in a focused window.
+  let actx = null, lastChime = 0;
+  SMChat.chime = function () {
+    const now = Date.now();
+    if (now - lastChime < 3000) return;
+    lastChime = now;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+      const t = actx.currentTime;
+      [[880, 0], [1318.5, 0.11]].forEach(([f, d]) => {
+        const osc = actx.createOscillator(), g = actx.createGain();
+        osc.type = 'sine'; osc.frequency.value = f;
+        g.gain.setValueAtTime(0, t + d);
+        g.gain.linearRampToValueAtTime(0.05, t + d + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.45);
+        osc.connect(g).connect(actx.destination);
+        osc.start(t + d); osc.stop(t + d + 0.5);
+      });
+    } catch { /* no audio device */ }
+  };
+  const pingKey = k => 'smc-ping:' + k;
+  // Highest message id already checked for mentions in this chat.
+  SMChat.pingSeq = key => {
+    const v = localStorage.getItem(pingKey(key));
+    return v == null ? SMChat.seen(key) : +v;
+  };
+  // v is a full chat view. Chimes once if a message newer than the last check mentions you.
+  SMChat.checkMentions = function (key, v, quiet) {
+    if (!v || v.same || !v.msgs) return;
+    const from = SMChat.pingSeq(key);
+    if (v.seq <= from) return;
+    localStorage.setItem(pingKey(key), v.seq);
+    if (quiet) return;
+    if (v.msgs.some(m => m.id > from && m.fromId !== v.me && (m.mentions || []).includes(v.me))) SMChat.chime();
+  };
+  const watching = key => SMChat.current === key && document.hasFocus() && !document.hidden;
+
   let el = null, o = null, V = null, rev = -1, timer = null, replyTo = 0, picked = {}, ac = null, busy = false;
 
   function build() {
@@ -136,6 +175,7 @@
     V.names = {}; for (const p of v.people || []) V.names[p.id] = p.name;
     drawPeople(); drawList();
     if (atEnd) toBottom(); else if (v.seq > before) q('.smc-new').hidden = false;
+    SMChat.checkMentions(o.key, v, watching(o.key));
     SMChat.markSeen(o.key, v.seq);
     if (o.onSeen) o.onSeen(v.seq);
   }

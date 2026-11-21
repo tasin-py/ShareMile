@@ -230,6 +230,7 @@ async function chatBadge() {
       $('#chat-fab').hidden = false;
       if (!v.same) {
         chatRev = v.rev;
+        SMChat.checkMentions(chatId, v);
         const n = SMChat.unread(chatId, v.seq);
         $('#chat-badge').textContent = n ? (n > 99 ? '99+' : n) : '';
       }

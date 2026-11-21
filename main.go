@@ -167,7 +167,7 @@ func main() {
 
 	// Keep the UI shell light: no GPU process, one renderer, no background extras.
 	if os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") == "" {
-		os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu --disable-gpu-compositing --renderer-process-limit=1 --disable-extensions --disable-background-networking --disable-component-update --disable-features=msSmartScreenProtection,Translate,AutofillServerCommunication,msEdgeShopping")
+		os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu --disable-gpu-compositing --renderer-process-limit=1 --disable-extensions --disable-background-networking --disable-component-update --autoplay-policy=no-user-gesture-required --disable-features=msSmartScreenProtection,Translate,AutofillServerCommunication,msEdgeShopping")
 	}
 	wv = webview2.NewWithOptions(webview2.WebViewOptions{
 		DataPath:  filepath.Join(appDataDir(), "webview"),

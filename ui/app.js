@@ -548,7 +548,7 @@ function renderReceives(list) {
     $('h3', c).textContent = t.name;
     const st = {downloading: ['Downloading', 'ok'], paused: ['Paused', ''], done: ['Done ✓', 'ok'], error: ['Stopped', 'bad']}[t.state] || [t.state, ''];
     f('state').textContent = st[0]; f('state').className = 'pill ' + st[1];
-    $('.bar i', c).style.width = (t.total ? Math.min(100, t.got / t.total * 100) : 100).toFixed(1) + '%';
+    $('.bar i', c).style.transform = 'scaleX(' + (t.total ? Math.min(1, t.got / t.total) : 1).toFixed(4) + ')';
     f('got').textContent = fmtBytes(t.got); f('total').textContent = fmtBytes(t.total);
     f('files').textContent = `${t.doneCount}/${t.count}`;
     f('by').hidden = !t.by; $('b', f('by')).textContent = t.by || '';
@@ -764,7 +764,7 @@ function renderJoined(list) {
         const label = {queued: 'Queued', preparing: 'Preparing…', downloading: `${pct.toFixed(1)}% · ${fmtSpeed(t.speed)} · ${t.sources} source${t.sources > 1 ? 's' : ''}`, paused: `Paused · ${pct.toFixed(1)}%`, done: 'Done · ' + fmtBytes(t.file.size), error: 'Failed', cancelled: 'Cancelled'}[t.state] || t.state;
         $('.meta', el).textContent = label;
         $('.bar', el).classList.toggle('indet', t.state === 'preparing' || t.state === 'queued');
-        $('.bar i', el).style.width = pct + '%';
+        $('.bar i', el).style.transform = 'scaleX(' + (pct / 100) + ')';
         const running = t.state === 'downloading' || t.state === 'preparing' || t.state === 'queued';
         el._running = running; el._state = t.state; el._path = t.path;
         const tg = $('[data-act=toggle]', el);
@@ -786,13 +786,13 @@ function visibleFiles(j) {
 
 // ------------------------------------------------------------- settings
 const THEMES = [
-  ['pitch-black', 'Pitch Black', '#000', '#2ee6a6', '#f4f4f5'],
-  ['midnight-blue', 'Midnight Blue', '#070d1f', '#6ea8ff', '#eef2ff'],
-  ['graphite', 'Graphite', '#16171a', '#e8e8ea', '#9aa0ad'],
-  ['noir-gold', 'Noir Gold', '#0a0907', '#e8b84a', '#f7f1e3'],
-  ['aurora', 'Aurora', '#03110f', '#42f5c8', '#b38cff'],
-  ['light', 'Light', '#f4f5f7', '#0b7a5c', '#0f1115'],
-  ['paper', 'Paper', '#f6f1e7', '#9a4b12', '#1d1a14'],
+  ['pitch-black', 'Pitch Black', '#000', '#45e0a8', '#f5f5f4'],
+  ['midnight-blue', 'Midnight Blue', '#060a16', '#86adff', '#5fd4e8'],
+  ['graphite', 'Graphite', '#141416', '#ece7dc', '#a8a39a'],
+  ['noir-gold', 'Noir Gold', '#0b0a08', '#dcb56a', '#f0dcae'],
+  ['aurora', 'Aurora', '#04100e', '#52e5c2', '#a596ff'],
+  ['light', 'Light', '#f5f5f2', '#0b7a5c', '#121316'],
+  ['paper', 'Paper', '#f4eee2', '#96470f', '#1e1a13'],
 ];
 $('#themes').innerHTML = THEMES.map(([id, n, bg, a, b]) => `<button class="theme" data-theme-id="${id}"><span class="sw" style="background:${bg}"><i style="background:${a}"></i><i style="background:${b}"></i></span><span class="tn">${n}</span></button>`).join('');
 $$('[data-theme-id]').forEach(b => b.onclick = async () => { applyTheme(b.dataset.themeId); await rpc('setConfig', {theme: b.dataset.themeId}); });
@@ -890,9 +890,22 @@ const chatName = () => (S && S.config.chatName) || '';
 function setBadge(btn, key, seq) {
   if (!btn) return;
   const n = SMChat.current === key ? 0 : SMChat.unread(key, seq);
+  if (n) pingCheck(key, seq);
   const t = n ? (n > 99 ? '99+' : String(n)) : '';
   const b = $('.badge', btn);
   if (b.textContent !== t) b.textContent = t;
+}
+// A chat that isn't open got new messages: look at just those for an @mention of you.
+const pingBusy = {};
+async function pingCheck(key, seq) {
+  if (!seq || seq <= SMChat.pingSeq(key) || pingBusy[key] || SMChat.current === key) return;
+  pingBusy[key] = true;
+  try {
+    const i = key.indexOf(':');
+    const v = await rpc('chat', {kind: key.slice(0, i), id: key.slice(i + 1), since: -1});
+    if (SMChat.current !== key) SMChat.checkMentions(key, v);
+  } catch { /* offline */ }
+  pingBusy[key] = false;
 }
 function openChat(kind, id, title, sub, hostLabel) {
   SMChat.open({
@@ -922,7 +935,7 @@ async function pollRecvChat(tok) {
   if (SMChat.current === 'recv:' + tok) return;
   try {
     const v = await rpc('chat', {kind: 'recv', id: tok, since: recvRev[tok] ?? -1});
-    if (!v.same) { recvRev[tok] = v.rev; recvSeq[tok] = v.seq; }
+    if (!v.same) { recvRev[tok] = v.rev; recvSeq[tok] = v.seq; SMChat.checkMentions('recv:' + tok, v); }
   } catch { /* sender offline, or an older ShareMile without chat */ }
 }
 setTimeout(watchRecvChats, 3000);
