@@ -55,7 +55,48 @@ It has two modes:
 | Receiver needs | Only a browser (phone or PC) | The ShareMile app + the secret code |
 | How they get in | Link or QR code | `SM-XXXXX-…` secret code |
 | Picks files | Preview, download one, a folder, a selection, or everything as a ZIP | Browse, search, tick what you want |
-| Extra | They can send files back to you (optional) | Members re-share pieces with each other, like a swarm, and every piece is hash-checked |
+| Extra | They can send files back to you (optional) | A swarm: members who have a file help send it to others, and every piece is hash-checked ([how it works](#how-share-network-works-the-swarm)) |
+
+## How Share Network works (the swarm)
+
+> [!IMPORTANT]
+> **The more people have a file, the faster it gets.** In a Share Network the host isn't the only source. Every member who already downloaded a file can send pieces of it to the next member, at the same time as the host. ShareMile checks every piece against a fingerprint made by the host, so a member can never slip you a broken or fake file.
+
+```mermaid
+flowchart LR
+    H["Host<br/>(has every file,<br/>makes the fingerprints)"]
+    A["Member A<br/>(finished movie.mkv)"]
+    B["Member B<br/>(finished movie.mkv)"]
+    C["Member C<br/>(downloading movie.mkv)"]
+    H -- "pieces 1, 4, 7 …" --> C
+    A -- "pieces 2, 5, 8 …" --> C
+    B -- "pieces 3, 6, 9 …" --> C
+    H -. "fingerprint of every piece" .-> C
+```
+
+### Step by step
+
+1. **The host is the tracker and the first source.** It keeps the list of files, the list of members who are online, and which member already has which file. No outside server is involved: the secret code carries everything needed to reach the host.
+2. **Files are cut into 4 MB pieces.** For each piece the host computes a SHA-256 fingerprint (once, then cached).
+3. **When you finish a file, you tell the host you have it,** along with the addresses where you can be reached (your Wi-Fi/LAN address, IPv6, a real IP, or your relay link). This only happens while *"Share what I download with other members"* is ticked on the network's card (it is by default).
+4. **When someone starts a download,** ShareMile asks the host who has that file, pings those members, and keeps the ones that answer within 3 seconds.
+5. **Pieces are pulled from every source at once.** The host gets 4 parallel connections and each helping member gets 2. They all take the next missing piece from one shared queue, so a fast source simply ends up sending more pieces and a slow one fewer. The download card shows how many sources are helping.
+6. **Every piece from a member is checked.** Its SHA-256 must match the host's fingerprint, or it's thrown away and fetched again from another source. A member that keeps failing is dropped, and the host finishes the job. If the fingerprints can't be fetched, ShareMile downloads from the host only.
+7. **Progress is saved piece by piece,** so Pause, a dropped connection, closing the app or even a crash only loses the piece that was in flight.
+
+### What this means in practice
+
+- **The host's upload stops being the bottleneck.** With three members already holding a file, the next member can pull from four places at once instead of one.
+- **Popular files get faster over time,** because every finished download adds another source.
+- **Members on the same Wi-Fi help each other at LAN speed.** If one person in a hall, office or house downloads a file over the internet, the others can take most of it from them across the local network.
+- **The host can go easier on its connection,** since members carry part of the load.
+
+### Good to know
+
+- A member helps with a file only **after finishing it**. Two people downloading the same file at the same moment both take it from the host (and from anyone who already has it).
+- A member helps only if others **can reach them**: same Wi-Fi/LAN, IPv6, a real IP (BDIX Transfer), or their own relay. Members behind CGNAT with no relay can still download; they just can't serve others over the internet.
+- A member serves **only files from that network,** only to people with that network's secret code, and only while ShareMile is running. Untick *"Share what I download with other members"* to download without helping.
+- If the host presses **New code**, members with the old code lose access, and that includes being able to fetch pieces from each other.
 
 ## Features
 
@@ -63,11 +104,11 @@ It has two modes:
 - **Link + QR code + copy button** for every share. The **Relay** link is the default and works everywhere; Same Wi-Fi, IPv6 and **BDIX Transfer** (real IP only) links sit next to it.
 - **A browser page that needs no app**: thumbnails, folder browsing, search, image/video/audio/PDF/text preview, per-file download, folder ZIP, "Download all", and multi-select ZIP. It works on phones too.
 - **Link previews**: paste a link in Messenger, WhatsApp, Telegram or Discord and it shows a card with the share's name and size.
-- **Works across the internet, out of the box**: a free **Cloudflare relay** starts by itself when you share, so links open from any country even without a real IP (CGNAT). People on your Wi-Fi get a direct LAN link too.
+- **Works across the internet, out of the box**: a free **Cloudflare relay** starts together with ShareMile, so the link is ready the moment you share, so links open from any country even without a real IP (CGNAT). People on your Wi-Fi get a direct LAN link too.
 - **Optional BDIX speed** (real IP only): one click on **BDIX Transfer** tests from the internet whether direct links reach you. It says plainly if your ISP hasn't given you a real IP, or exactly what to forward in your router if it has. UPnP opens the port automatically when your router allows it, and IPv6 is used when your ISP provides it.
 - **Resumable transfers**: HTTP range support, so the built-in downloader, IDM, ADM and browsers can resume and use multiple connections.
 - **File dates kept**: received files keep the sender's created and modified dates (in-app downloads and Share Network; ZIP downloads keep modified dates).
-- **Share Network (swarm)**: a private group under a secret code. Downloads pull 4 MB pieces from the host *and* other members in parallel. SHA-256 verification means a member can't send you a corrupt or fake file. Pause, resume or delete each download, even after a restart.
+- **Share Network (swarm)**: a private group under a secret code. Downloads pull 4 MB pieces from the host *and* every member who already has the file, in parallel ([how it works](#how-share-network-works-the-swarm)). SHA-256 verification means a member can't send you a corrupt or fake file. Pause, resume or delete each download, even after a restart.
 - **Hosts stay in control**: add or remove folders and single files, rename the network, and choose how members connect (Automatic, Relay, BDIX Transfer, Same Wi-Fi, IPv6). Members see changes within about 30 seconds.
 - **Sort file lists** by name, size or date modified.
 - **Chat**: talk to the people downloading your Quick Share (from the app or right in their browser, phones included), or use a **group chat** inside a Share Network. **@mentions** with name suggestions, **reply** to a specific message, and **reactions** (👍 ❤️ 😂 😮 😢 🙏 🔥 🎉). Messages stay on the sharer's / host's PC; nothing goes through an outside server. When someone **@mentions you**, a soft chime plays (unless you're already looking at that chat); ordinary messages stay silent.
@@ -222,15 +263,20 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.6.0
+.\build.ps1 -Version 1.6.1
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.1\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.6.1 (2026-11-22)
+- Changed: the relay starts when ShareMile opens (with Auto relay on), so the relay link is ready the moment you share instead of 10 to 30 seconds later. Turning Auto relay off closes an idle relay; pressing Stop relay keeps it off until you start it again.
+- New: a relay that couldn't start (for example, no internet yet at startup) or stopped by itself is retried once a minute.
+- README: a detailed section on how Share Network's swarm works.
+
 v1.6.0 (2026-11-22)
 - New: a soft chime when someone @mentions you in a chat. It stays quiet when that chat is open in a focused window, and ordinary messages never make a sound.
 - New: a more premium look across the whole app. All seven themes have refined colours with their own shadows and highlights; headings use Segoe UI Variable Display; buttons, tabs, toggles, fields and the chat drawer are restyled, with clear focus rings and smoother motion (reduced when Windows asks for less motion).

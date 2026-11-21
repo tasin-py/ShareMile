@@ -238,23 +238,42 @@ func refreshNetwork() {
 	maybeAutoRelay()
 }
 
-// maybeAutoRelay keeps the relay running while something is shared. The relay
-// link is the default because it works on every connection (CGNAT included);
-// BDIX Transfer (direct) is offered next to it when the connection allows.
+// maybeAutoRelay keeps the relay running while ShareMile is open (Auto relay on),
+// so links are ready the moment something is shared. The relay link works on
+// every connection (CGNAT included); BDIX Transfer (direct) is offered next to it
+// when the connection allows. A relay that failed (no internet yet at startup,
+// or it stopped) is retried once a minute.
+var (
+	autoRelayMu  sync.Mutex
+	relayUserOff bool      // the user pressed Stop relay; don't restart it by itself
+	relayLastTry time.Time // last automatic start
+)
+
 func maybeAutoRelay() {
+	autoRelayMu.Lock()
+	defer autoRelayMu.Unlock()
 	cfgMu.Lock()
 	auto := cfg.AutoRelay != nil && *cfg.AutoRelay
 	cfgMu.Unlock()
-	auto = auto || hostWantsRelay() // a network set to "Relay" always needs it
+	want := (auto && !relayUserOff) || hostWantsRelay() // a network set to "Relay" always needs it
 	n := getNet()
-	busy := needsInternet()
-	if relayAuto && !busy && n.RelayState != "off" {
-		stopRelay() // nothing shared any more: close the auto-started tunnel too
+	if !want {
+		if relayAuto && n.RelayState != "off" && !needsInternet() {
+			stopRelay() // Auto relay was turned off and nothing uses the tunnel
+			relayAuto = false
+		}
 		return
 	}
-	if !auto || !busy || n.RelayState != "off" {
-		return
+	switch n.RelayState {
+	case "off":
+	case "error":
+		if !relayAuto || time.Since(relayLastTry) < time.Minute {
+			return
+		}
+	default:
+		return // starting, downloading or on
 	}
+	relayLastTry = time.Now()
 	startRelay()
 	relayAuto = true
 }
@@ -325,6 +344,12 @@ func unmapUPnP() {
 
 // netWatcher keeps the mapping alive and notices IP changes.
 func netWatcher() {
+	maybeAutoRelay() // start the relay at launch, before the slower network checks
+	go func() {
+		for range time.Tick(time.Minute) {
+			maybeAutoRelay() // retry a relay that failed or stopped
+		}
+	}()
 	refreshNetwork()
 	t := time.NewTicker(10 * time.Minute) // dynamic IPs change; keep links current
 	for range t.C {

@@ -187,7 +187,9 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		go refreshNetwork()
 		return true, nil
 	case "relay":
-		relayAuto = false
+		autoRelayMu.Lock()
+		relayAuto, relayUserOff = false, !a.On
+		autoRelayMu.Unlock()
 		if a.On {
 			startRelay()
 		} else {
@@ -433,9 +435,11 @@ func setConfig(a rpcArgs) error {
 	if a.LinkMode != "" {
 		cfg.LinkMode = a.LinkMode
 	}
+	relayChanged := false
 	if a.AutoRelay != nil {
 		v := *a.AutoRelay
 		cfg.AutoRelay = &v
+		relayChanged = true
 	}
 	bgChanged := false
 	if a.Background != nil {
@@ -456,6 +460,12 @@ func setConfig(a rpcArgs) error {
 	cfgMu.Unlock()
 	if bgChanged {
 		go syncTray()
+	}
+	if relayChanged {
+		autoRelayMu.Lock()
+		relayUserOff = false
+		autoRelayMu.Unlock()
+		go maybeAutoRelay()
 	}
 	if restart {
 		unmapUPnP()
