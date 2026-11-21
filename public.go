@@ -94,6 +94,9 @@ func secHeaders(h http.Handler) http.Handler {
 			http.Error(w, "Too many wrong links. Try again later.", http.StatusTooManyRequests)
 			return
 		}
+		if pausedGate(w, r) {
+			return
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
@@ -227,9 +230,14 @@ func handleShare(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(sharePage(r, s)))
 		return
 	}
+	if n := r.Header.Get("X-SM-Name"); n != "" {
+		if dn, err := url.QueryUnescape(n); err == nil {
+			s.noteVisitor(dn)
+		}
+	}
 	switch parts[1] {
 	case "api":
-		writeJSON(w, map[string]any{"name": s.Name, "files": s.Files, "total": s.Total, "allowUpload": s.AllowUpload, "app": appName, "version": appVersion})
+		writeJSON(w, map[string]any{"name": s.Name, "files": s.Files, "total": s.Total, "allowUpload": s.AllowUpload, "app": appName, "version": appVersion, "by": userName()})
 	case "f", "t":
 		if len(parts) < 3 {
 			http.NotFound(w, r)

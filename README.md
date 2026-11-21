@@ -76,10 +76,14 @@ It has two modes:
 - **New link / New code**: retire a link or a network code in one click. Anyone holding the old one loses access.
 - **Bookmarks**: save your favourite network codes; they stay in the app and connect in one click.
 - **Paste buttons** next to **Open** and **Join**, so a copied link or code goes in with one click.
+- **Your name**: ShareMile asks once on first start. People see **"Connected with …"** your name (and you see theirs) on shares, downloads and networks. Change it any time in *Settings → You*.
+- **Runs in the background**: closing the window keeps ShareMile in the notification area (next to the clock), so shares and networks stay online. Right-click the icon for **Open**, **Pause sharing** / **Resume sharing** and **Exit**. Turn it off in *Settings → App*.
+- **Pause sharing**: takes every link and network offline and pauses downloads in one click; **Resume** brings them all back.
+- **Refresh** on a joined network asks the host to recheck its folders right away; hosts also pick up added, changed or deleted files by themselves.
 - **Files back to you**: let people drop files back to you from the share page.
 - **Live stats**: visitors, bytes sent, live speed.
 - **7 themes**: Pitch Black, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper. Text stays readable in all of them.
-- **One-click updates** from the About page, plus Buy Me a Coffee.
+- **One-click updates** from Settings or the About page, plus Buy Me a Coffee.
 - **Lightweight**: a single ~9 MB executable, about 25 MB of RAM for the sharing engine, and near-zero CPU when idle.
 
 ## Install
@@ -95,6 +99,11 @@ It has two modes:
 Prefer no installer? Grab **[ShareMile-Portable.exe](https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-Portable.exe)**. It needs the Microsoft Edge WebView2 Runtime, which Windows 10/11 already include.
 
 ## Usage
+
+### First start
+ShareMile asks for your name once. It's shown to the people you share with ("Connected with …") and in chats. Change it in *Settings → You*.
+
+Closing the window doesn't stop sharing: ShareMile keeps running next to the clock. Right-click its icon to **Pause sharing** or **Exit** (or turn this off in *Settings → App*).
 
 ### Send files to anyone (Quick Share)
 1. Open **Quick Share**, then **Add files** / **Add folder**, drag files and folders onto the page, or paste a path.
@@ -126,7 +135,7 @@ Downloads use 8 connections at once and survive anything: pause and resume, a dr
 ### Share a library with a group (Share Network)
 1. **Network → Host a network**: name it, add files/folders, then **Create network**.
 2. Send members the **secret code**.
-3. Members open **Network → Join with a code**, paste it, tick files and press **Download selected**. Sort the list by name, size or date modified.
+3. Members open **Network → Join with a code**, paste it, tick files and press **Download selected**. Sort the list by name, size or date modified. The card shows **Connected with** the host's name; **Refresh** fetches the host's latest files right away (changes also arrive by themselves within about a minute).
 4. Each download has **Pause / Resume** and a **✕** button. ✕ on an unfinished download deletes its partial file; on a finished one it only clears it from the list (the file stays). Unfinished downloads are still listed after a restart.
 5. Keep *"Share what I download with other members"* on, and everyone gets faster.
 6. **Group chat** (on the network's card) is a chat room for the host and every member: type `@` to mention someone, hover a message to **reply** or **react**.
@@ -213,15 +222,23 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.4.0
+.\build.ps1 -Version 1.5.0
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.4.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.5.0\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.5.0 (2026-11-21)
+- New: Run in the background (on by default). Closing the window keeps ShareMile in the notification area; right-click its icon for Open, Pause sharing / Resume sharing and Exit. Opening ShareMile again brings the window back.
+- New: Pause sharing (tray menu, Settings → App, and a banner with Resume). Links and networks go offline, downloads pause, and Resume restarts exactly those downloads. Members see "The host paused sharing".
+- New: ShareMile asks for your name on first start. Shares, downloads and networks show "Connected with <name>" on both sides. Change it in Settings → You.
+- New: Refresh button on joined networks: the host rechecks its folders and the latest file list arrives right away.
+- New: hosts pick up added, changed or deleted files automatically (members see them within about a minute), and members only re-download the list when it actually changed.
+- New: Check for Updates in Settings (also still in About).
+
 v1.4.0 (2026-11-21)
 - New: chat. Quick Share has a chat between the sharer and everyone with the link (in the app and on the browser page, phones included); each Share Network has a group chat for the host and members.
 - New: @mentions with name suggestions, replies to a specific message, and emoji reactions in chats. Unread badges show new messages.

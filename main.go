@@ -192,14 +192,11 @@ func main() {
 	setDarkTitle(isDarkTheme(cfg.Theme))
 	wv.Bind("smSetDarkTitle", func(dark bool) error { setDarkTitle(dark); return nil })
 	installDropHandler(wv)
-	hookClose(mainHwnd, func() bool {
-		if !busy() {
-			return true
-		}
-		return messageBox(appName, "ShareMile is still sharing or downloading.\n\nClose it and stop everything?", 0x34) == 6
-	})
+	hookClose(mainHwnd, onWindowClose)
+	syncTray()
 	wv.Navigate(ctrlURL)
 	wv.Run()
+	removeTray()
 }
 
 func appDataDirOverride() string { return dataDirOverride }

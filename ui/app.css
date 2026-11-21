@@ -232,3 +232,16 @@ small{color:var(--muted);display:block;margin-top:6px;font-size:12px}
 .dropzone span{color:var(--muted);font-size:13px}
 .chat-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
 @media (min-width:1180px){body.smc-open main{padding-right:432px}}
+/* paused banner, welcome, settings extras */
+.paused-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;max-width:980px;margin:0 auto 16px;padding:10px 14px;border-radius:12px;border:1px solid var(--warn);background:color-mix(in srgb,var(--warn) 12%,var(--card));font-size:14px}
+.welcome{position:fixed;inset:0;z-index:80;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(6px)}
+.welcome-in{width:min(420px,92vw);display:flex;flex-direction:column;gap:12px;padding:28px;border-radius:18px;background:var(--card);border:1px solid var(--line);box-shadow:0 24px 70px rgba(0,0,0,.4);text-align:center}
+.welcome-in img{width:56px;height:56px;margin:0 auto}
+.welcome-in h2{margin:0;font-size:20px}
+.welcome-in p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.welcome-in input{height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--text);font:inherit;font-size:15px;text-align:center;outline:none}
+.welcome-in input:focus{border-color:var(--acc)}
+.welcome-in .btn{height:44px}
+.set-note{display:block;color:var(--muted);font-size:12.5px;margin:6px 0 12px 0}
+.set-actions{margin-top:4px}
+.conn{color:var(--acc)}

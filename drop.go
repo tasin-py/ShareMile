@@ -63,6 +63,7 @@ func installDropHandler(w webview2.WebView) {
 	if !ok || ch == nil {
 		return
 	}
+	wvController = ch.GetController()
 	core := uintptr(unsafe.Pointer(ch.GetICoreWebView2_3())) // same object, ICoreWebView2 vtable first
 	if core == 0 {
 		return

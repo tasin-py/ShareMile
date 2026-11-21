@@ -41,7 +41,15 @@ type RecvFile struct {
 	CTime int64  `json:"ctime,omitempty"`
 }
 
+// setNameHeader tells the sender who is downloading ("Connected with ...").
+func setNameHeader(req *http.Request) {
+	if n := userName(); n != "" {
+		req.Header.Set("X-SM-Name", url.QueryEscape(n))
+	}
+}
+
 type recvManifest struct {
+	By    string     `json:"by"` // the sender's name
 	Token string     `json:"token"`
 	Base  string     `json:"base"`
 	Name  string     `json:"name"`
@@ -55,6 +63,7 @@ type RecvTask struct {
 	Token string     `json:"token"`
 	Base  string     `json:"base"` // current address of the sender, e.g. https://x.trycloudflare.com
 	Name  string     `json:"name"`
+	By    string     `json:"by,omitempty"` // the sender's name
 	Dir   string     `json:"dir"`
 	Files []RecvFile `json:"files"`
 	Total int64      `json:"total"`
@@ -115,6 +124,7 @@ func recvOpen(raw string) (*recvManifest, error) {
 	var resp *http.Response
 	for attempt := 0; ; attempt++ {
 		req, _ := http.NewRequestWithContext(ctx, "GET", base+"/s/"+token+"/api", nil)
+		setNameHeader(req)
 		resp, err = recvClient.Do(req)
 		// A brand-new relay address can take a few seconds to go live: retry briefly.
 		if err == nil || attempt >= 3 || ctx.Err() != nil {
@@ -150,6 +160,9 @@ func recvOpen(raw string) (*recvManifest, error) {
 			t.Base = base
 			if t.State == "error" {
 				revive = append(revive, t)
+			}
+			if m.By != "" {
+				t.By = m.By
 			}
 			t.mu.Unlock()
 		}
@@ -236,7 +249,7 @@ func recvStart(token string, ids []string) (*RecvTask, error) {
 		}
 	}
 	recvMu.Unlock()
-	t := &RecvTask{ID: randToken(6), Token: token, Base: m.Base, Name: m.Name, Dir: recvRoot(m),
+	t := &RecvTask{ID: randToken(6), Token: token, Base: m.Base, Name: m.Name, By: m.By, Dir: recvRoot(m),
 		Files: files, State: "downloading", Added: time.Now()}
 	for _, f := range files {
 		t.Total += f.Size
@@ -542,6 +555,7 @@ func (t *RecvTask) fetchOnce(ctx context.Context, base, token string, j recvJob)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, "GET", fileURL(base, token, j.f.rf.ID), nil)
+	setNameHeader(req)
 	req.Header.Set("Range", "bytes="+strconv.FormatInt(j.from, 10)+"-"+strconv.FormatInt(j.to, 10))
 	req.Header.Set("User-Agent", "ShareMile/"+appVersion)
 	resp, err := recvClient.Do(req)
@@ -708,7 +722,7 @@ func recvView() []map[string]any {
 	for i := len(ts) - 1; i >= 0; i-- { // newest first
 		t := ts[i]
 		t.mu.Lock()
-		v := map[string]any{"id": t.ID, "token": t.Token, "name": t.Name, "dir": t.Dir, "count": len(t.Files), "doneCount": len(t.Done),
+		v := map[string]any{"id": t.ID, "token": t.Token, "name": t.Name, "by": t.By, "dir": t.Dir, "count": len(t.Files), "doneCount": len(t.Done),
 			"total": t.Total, "got": t.got.Load(), "state": t.State, "err": t.Err, "speed": t.meter.Speed()}
 		t.mu.Unlock()
 		out = append(out, v)

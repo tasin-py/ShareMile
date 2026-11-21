@@ -29,18 +29,20 @@ type JoinedNetCfg struct {
 }
 
 type Config struct {
-	Port        int             `json:"port"`
-	DownloadDir string          `json:"downloadDir"`
-	Theme       string          `json:"theme"`
-	UseUPnP     bool            `json:"useUpnp"`
-	LinkMode    string          `json:"linkMode"` // auto|public|ipv6|lan|relay
-	AutoRelay   *bool           `json:"autoRelay"`
-	Networks    []*HostedNetCfg `json:"networks"`
-	Joined      []*JoinedNetCfg `json:"joined"`
-	Bookmarks   []*Bookmark     `json:"bookmarks"`
-	Retired     []string        `json:"retired,omitempty"` // ids of network codes this PC replaced
-	ChatName    string          `json:"chatName,omitempty"`
-	ChatKey     string          `json:"chatKey,omitempty"` // private: proves this PC's chat identity
+	Port          int             `json:"port"`
+	DownloadDir   string          `json:"downloadDir"`
+	Theme         string          `json:"theme"`
+	UseUPnP       bool            `json:"useUpnp"`
+	LinkMode      string          `json:"linkMode"` // auto|public|ipv6|lan|relay
+	AutoRelay     *bool           `json:"autoRelay"`
+	Networks      []*HostedNetCfg `json:"networks"`
+	Joined        []*JoinedNetCfg `json:"joined"`
+	Bookmarks     []*Bookmark     `json:"bookmarks"`
+	Retired       []string        `json:"retired,omitempty"` // ids of network codes this PC replaced
+	ChatName      string          `json:"chatName,omitempty"`
+	Background    *bool           `json:"background,omitempty"` // keep running in the tray when the window closes (default on)
+	TrayHintShown bool            `json:"trayHintShown,omitempty"`
+	ChatKey       string          `json:"chatKey,omitempty"` // private: proves this PC's chat identity
 }
 
 var (

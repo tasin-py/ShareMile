@@ -18,11 +18,12 @@ const ICONS = {
 const DL = '<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
 const ic = k => `<svg class="ic" viewBox="0 0 24 24">${ICONS[k] || ICONS.file}</svg>`;
 
+const nameHdr = () => localStorage.smChatName ? {'X-SM-Name': encodeURIComponent(localStorage.smChatName)} : {};
 let D = null, cwd = '', sel = new Set(), view = localStorage.smView || 'grid', items = [];
 
 async function load() {
   try {
-    const r = await fetch(base + 'api', {cache: 'no-store'});
+    const r = await fetch(base + 'api', {cache: 'no-store', headers: nameHdr()});
     if (!r.ok) throw 0;
     D = await r.json();
   } catch {
@@ -32,7 +33,7 @@ async function load() {
   }
   document.title = D.name + ' · ShareMile';
   $('#title').textContent = D.name;
-  $('#sub').textContent = `${D.files.length.toLocaleString()} file${D.files.length > 1 ? 's' : ''} · ${fmt(D.total)}`;
+  $('#sub').textContent = `${D.files.length.toLocaleString()} file${D.files.length > 1 ? 's' : ''} · ${fmt(D.total)}` + (D.by ? ` · shared by ${D.by}` : '');
   $('#dl-all').disabled = false;
   $('#upload').hidden = !D.allowUpload;
   // single top-level folder: open it directly
@@ -207,7 +208,7 @@ const chatKey = (() => {
 const chatId = 'share:' + base.split('/')[2];
 let chatRev = -1;
 async function chatReq(method, q, body) {
-  const r = await fetch(base + 'chat' + q, {method, cache: 'no-store', headers: {'X-SM-Chat': chatKey, 'Content-Type': 'application/json'}, body: body && JSON.stringify(body)});
+  const r = await fetch(base + 'chat' + q, {method, cache: 'no-store', headers: {'X-SM-Chat': chatKey, 'Content-Type': 'application/json', ...nameHdr()}, body: body && JSON.stringify(body)});
   if (r.status === 404) throw new Error('Chat isn\'t available for this share.');
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || 'Chat error');

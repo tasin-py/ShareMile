@@ -24,6 +24,7 @@
   </aside>
 
   <main>
+    <div class="paused-bar" id="paused-bar" hidden><span><b>Sharing is paused.</b> Your links and networks are offline and downloads are paused.</span><button class="btn small primary" id="paused-resume">Resume sharing</button></div>
     <!-- QUICK SHARE -->
     <section class="page on" id="page-quick">
       <header class="ph">
@@ -62,7 +63,7 @@
         </div>
       </div>
       <div class="card" id="rc-pick" hidden>
-        <div class="share-title"><div class="rc-head"><h3 id="rc-name"></h3><span class="muted tnum" id="rc-sum"></span></div>
+        <div class="share-title"><div class="rc-head"><h3 id="rc-name"></h3><span class="muted tnum" id="rc-sum"></span><span class="pill ok" id="rc-by" hidden></span></div>
           <div class="row gap"><button class="btn small chat-btn" id="rc-chat" title="Chat with the sender"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat with sender<span class="badge"></span></button><button class="btn icon x" id="rc-close" title="Close this file list" aria-label="Close this file list">✕</button></div></div>
         <div class="row between wrap gap rc-tools">
           <label class="check"><input type="checkbox" id="rc-all" checked><span></span>Select all</label>
@@ -135,7 +136,25 @@
 
     <!-- SETTINGS -->
     <section class="page" id="page-settings">
-      <header class="ph"><h1>Settings</h1><p>Connection, storage and look.</p></header>
+      <header class="ph"><h1>Settings</h1><p>You, the app, connection, storage and look.</p></header>
+      <div class="card">
+        <h3>You</h3>
+        <div class="field">
+          <label>Your name</label>
+          <div class="row gap"><div class="pathin grow"><input id="set-chatname" maxlength="32" placeholder="How others see you"></div><button class="btn" id="set-chatname-save">Save</button></div>
+          <small>Shown to people you connect with ("Connected with …") and next to your chat messages.</small>
+        </div>
+      </div>
+      <div class="card">
+        <h3>App</h3>
+        <label class="check"><input type="checkbox" id="set-background"><span></span>Run in the background (recommended)</label>
+        <small class="set-note">Closing the window keeps ShareMile running in the taskbar's notification area (next to the clock), so your shares and networks stay online. Right-click its icon to pause or exit.</small>
+        <div class="row gap wrap set-actions">
+          <button class="btn" id="set-pause">Pause sharing</button>
+          <button class="btn" id="set-upd-btn"><span class="spin" hidden></span><span class="lbl">Check for Updates</span></button>
+          <span class="muted" id="set-upd-msg"></span>
+        </div>
+      </div>
       <div class="card">
         <h3>Connection</h3>
         <div class="kv" id="net-info"></div>
@@ -170,14 +189,6 @@
           <label>Relay</label>
           <div class="row gap wrap"><button class="btn" id="relay-btn">Turn relay on</button><span class="muted" id="relay-state"></span></div>
           <small>Uses a free Cloudflare quick tunnel so links work even when your ISP blocks incoming connections. It is slower than a direct BDIX path. The helper (~20 MB) downloads the first time.</small>
-        </div>
-      </div>
-      <div class="card">
-        <h3>Chat</h3>
-        <div class="field">
-          <label>Your name in chat</label>
-          <div class="row gap"><div class="pathin grow"><input id="set-chatname" maxlength="32" placeholder="Shown next to your messages"></div><button class="btn" id="set-chatname-save">Save</button></div>
-          <small>Used in Quick Share chats and network group chats.</small>
         </div>
       </div>
       <div class="card">
@@ -226,6 +237,15 @@
   </main>
 </div>
 <div class="dropzone" id="dropzone" hidden><div><svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></svg><b>Drop to share</b><span>Files and folders are added to your share</span></div></div>
+<div class="welcome" id="welcome" hidden>
+  <form class="welcome-in" id="welcome-form">
+    <img src="icon.png" alt="">
+    <h2>Welcome to ShareMile</h2>
+    <p>What should people call you? Your name is shown when you connect with someone and in chats. You can change it later in Settings.</p>
+    <input id="welcome-name" maxlength="32" placeholder="Your name" autocomplete="off" spellcheck="false">
+    <button class="btn primary" id="welcome-go">Continue</button>
+  </form>
+</div>
 <div class="toasts" id="toasts"></div>
 <script src="chat.js"></script>
 <script src="app.js"></script>

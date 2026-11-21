@@ -133,9 +133,23 @@ func revealPath(p string) error {
 var oldWndProc uintptr
 
 func hookClose(hwnd uintptr, onClose func() bool) {
+	showMsg := showRequestMsg()
 	cb := syscall.NewCallback(func(h, msg, wp, lp uintptr) uintptr {
 		if msg == 0x0010 && !onClose() { // WM_CLOSE
 			return 0
+		}
+		switch {
+		case msg == wmTray:
+			onTrayMessage(lp)
+			return 0
+		case msg == showMsg && showMsg != 0:
+			showMainWindow()
+			return 0
+		case msg == taskbarMsg && taskbarMsg != 0: // Explorer restarted
+			trayMu.Lock()
+			trayShown = false
+			trayMu.Unlock()
+			syncTray()
 		}
 		r, _, _ := procCallWinProc.Call(oldWndProc, h, msg, wp, lp)
 		return r
@@ -144,11 +158,21 @@ func hookClose(hwnd uintptr, onClose func() bool) {
 	oldWndProc, _, _ = procSetWinLong.Call(hwnd, uintptr(gwlpWndProc), cb)
 }
 
+func showRequestMsg() uintptr {
+	p, _ := windows.UTF16PtrFromString("ShareMile-ShowWindow")
+	m, _, _ := procRegisterWinMsg.Call(uintptr(unsafe.Pointer(p)))
+	return m
+}
+
 // focusExisting brings an already running ShareMile window to the front.
 func focusExisting() {
 	t, _ := windows.UTF16PtrFromString(appName)
 	h, _, _ := procFindWindow.Call(0, uintptr(unsafe.Pointer(t)))
 	if h != 0 {
+		// It may be hidden in the tray: ask it to show itself.
+		if m := showRequestMsg(); m != 0 {
+			procPostMessage.Call(h, m, 0, 0)
+		}
 		if r, _, _ := procIsIconic.Call(h); r != 0 {
 			procShowWindow.Call(h, 9) // SW_RESTORE
 		}

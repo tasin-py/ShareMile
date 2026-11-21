@@ -190,6 +190,7 @@ function renderShares(list) {
             <span>Visitors <b data-f="visits"></b></span>
             <span>Sent <b data-f="sent"></b></span>
             <span>Speed <b class="stat-speed" data-f="speed"></b></span>
+            <span data-f="conn" hidden>Connected with <b class="conn"></b></span>
           </div>
           <div class="recv" hidden></div>
         </div></div>`;
@@ -255,6 +256,9 @@ function renderShares(list) {
     f('visits').textContent = s.visits;
     f('sent').textContent = fmtBytes(s.sent);
     f('speed').textContent = fmtSpeed(s.speed);
+    const conn = (s.connected || []).join(', ');
+    f('conn').hidden = !conn;
+    if ($('b', f('conn')).textContent !== conn) $('b', f('conn')).textContent = conn;
     const recv = $('.recv', c);
     if (s.allowUpload) {
       recv.hidden = false;
@@ -294,6 +298,7 @@ function renderHosted(list) {
         <div class="stats" style="margin-top:12px">
           <span><b data-f="count"></b> files · <b data-f="total"></b></span>
           <span>Members online <b data-f="peers"></b></span>
+          <span data-f="members" hidden>Connected with <b class="conn"></b></span>
           <span>Sent <b data-f="sent"></b></span>
           <span>Speed <b class="stat-speed" data-f="speed"></b></span>
         </div>
@@ -344,6 +349,9 @@ function renderHosted(list) {
     f('count').textContent = h.count.toLocaleString();
     f('total').textContent = fmtBytes(h.total);
     f('peers').textContent = h.peers;
+    const mem = (h.members || []).join(', ');
+    f('members').hidden = !mem;
+    if ($('b', f('members')).textContent !== mem) $('b', f('members')).textContent = mem;
     f('sent').textContent = fmtBytes(h.sent);
     f('speed').textContent = fmtSpeed(h.speed);
     f('err').hidden = !h.err;
@@ -464,6 +472,8 @@ function rcRender() {
   $('#rc-pick').hidden = false;
   $('#rc-help').hidden = true;
   $('#rc-name').textContent = RC.name;
+  $('#rc-by').hidden = !RC.by;
+  $('#rc-by').textContent = RC.by ? 'Connected with ' + RC.by : '';
   setBadge($('#rc-chat'), 'recv:' + RC.token, recvSeq[RC.token]);
   $('#rc-sum').textContent = RC.files.length.toLocaleString() + (RC.files.length === 1 ? ' file · ' : ' files · ') + fmtBytes(RC.total);
   const q = $('#rc-filter').value.trim().toLowerCase();
@@ -513,7 +523,7 @@ function renderReceives(list) {
       c.innerHTML = `<div class="share-title"><h3></h3><span class="pill" data-f="state"></span></div>
         <div class="bar"><i></i></div>
         <div class="row between wrap gap">
-          <span class="stats"><span><b data-f="got"></b> of <b data-f="total"></b></span><span>Files <b data-f="files"></b></span><span>Speed <b class="stat-speed" data-f="speed"></b></span><span data-f="eta"></span></span>
+          <span class="stats"><span><b data-f="got"></b> of <b data-f="total"></b></span><span>Files <b data-f="files"></b></span><span data-f="by" hidden>From <b class="conn"></b></span><span>Speed <b class="stat-speed" data-f="speed"></b></span><span data-f="eta"></span></span>
           <span class="row gap wrap">
             <button class="btn small chat-btn" data-act="chat" title="Chat with the sender"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat<span class="badge"></span></button>
             <button class="btn small" data-act="toggle"></button>
@@ -541,6 +551,7 @@ function renderReceives(list) {
     $('.bar i', c).style.width = (t.total ? Math.min(100, t.got / t.total * 100) : 100).toFixed(1) + '%';
     f('got').textContent = fmtBytes(t.got); f('total').textContent = fmtBytes(t.total);
     f('files').textContent = `${t.doneCount}/${t.count}`;
+    f('by').hidden = !t.by; $('b', f('by')).textContent = t.by || '';
     f('speed').textContent = fmtSpeed(t.state === 'downloading' ? t.speed : 0);
     const left = t.total - t.got;
     f('eta').textContent = t.state === 'downloading' && t.speed > 1024 && left > 0 ? 'About ' + fmtETA(left / t.speed) + ' left' : '';
@@ -567,6 +578,7 @@ $('#rc-go').onclick = e => busyBtn(e.currentTarget, async () => {
     $('#rc-filter').value = '';
     $('#rc-idm').hidden = !r.idm;
     rcRender();
+    recvWatch.add(RC.token); localStorage.setItem('sm-recv-chats', JSON.stringify([...recvWatch].slice(-30)));
     pollRecvChat(RC.token).then(() => RC && setBadge($('#rc-chat'), 'recv:' + RC.token, recvSeq[RC.token]));
     await refresh();
   } else if (/^SM-/i.test(v)) {
@@ -635,7 +647,7 @@ function renderJoined(list) {
       c = document.createElement('div');
       c.className = 'card jn-card';
       c.dataset.id = j.id;
-      c.innerHTML = `<div class="share-title"><div class="row gap"><button class="btn icon bm" data-act="bm" title="Bookmark" aria-label="Bookmark">${BM_SVG}</button><h3></h3></div><div class="row gap"><span class="pill" data-f="status"></span><button class="btn small chat-btn" data-act="chat" title="Group chat with the host and members"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Group chat<span class="badge"></span></button><button class="btn small" data-act="reconnect">Reconnect</button><button class="btn small danger" data-act="leave">Leave</button></div></div>
+      c.innerHTML = `<div class="share-title"><div class="row gap"><button class="btn icon bm" data-act="bm" title="Bookmark" aria-label="Bookmark">${BM_SVG}</button><h3></h3></div><div class="row gap"><span class="pill" data-f="status"></span><button class="btn small chat-btn" data-act="chat" title="Group chat with the host and members"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Group chat<span class="badge"></span></button><button class="btn small" data-act="refresh" title="Ask the host for the latest file list"><span class="spin" hidden></span>Refresh</button><button class="btn small" data-act="reconnect">Reconnect</button><button class="btn small danger" data-act="leave">Leave</button></div></div>
         <div class="stats" style="margin:8px 0 12px"><span>Other members <b data-f="peers"></b></span><span>You uploaded <b data-f="up"></b></span></div>
         <label class="check" style="margin-bottom:12px"><input type="checkbox" data-act="seed"><span></span>Share what I download with other members (faster for everyone)</label>
         <div class="warn" data-f="err" hidden></div>
@@ -653,6 +665,13 @@ function renderJoined(list) {
         <div class="tasks"></div>`;
       $('[data-act=leave]', c).onclick = e => { if (confirm('Leave this network?')) busyBtn(e.currentTarget, async () => { await rpc('leave', {id: j.id}); await refresh(); }); };
       $('[data-act=chat]', c).onclick = () => openChat('joined', j.id, 'Group chat · ' + c._j.name, 'Host and members', 'Host');
+      $('[data-act=refresh]', c).onclick = e => busyBtn(e.currentTarget, async () => {
+        const before = (c._j.files || []).map(f => f.id).join(',');
+        const n = await rpc('manifest', {id: j.id});
+        await refresh();
+        const after = (c._j.files || []).map(f => f.id).join(',');
+        toast(before === after ? `File list is up to date (${n.toLocaleString()} file${n === 1 ? '' : 's'})` : `File list updated: ${n.toLocaleString()} file${n === 1 ? '' : 's'}`);
+      });
       $('[data-act=reconnect]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('reconnect', {id: j.id}); toast('Reconnecting…'); });
       $('[data-act=bm]', c).onclick = e => busyBtn(e.currentTarget, async () => { await setBookmark(c._j.code, !c._j.bookmarked); });
       $('[data-act=seed]', c).onchange = e => rpc('setSeed', {id: j.id, on: e.target.checked});
@@ -679,7 +698,7 @@ function renderJoined(list) {
     $('h3', c).textContent = j.name;
     $('[data-act=bm]', c).classList.toggle('on', !!j.bookmarked);
     $('[data-act=bm]', c).title = j.bookmarked ? 'Remove bookmark' : 'Bookmark this network';
-    const st = {online: ['Connected', 'ok'], connecting: ['Connecting…', ''], offline: ['Host offline', 'bad']}[j.status] || [j.status, ''];
+    const st = {online: [j.hostName ? 'Connected with ' + j.hostName : 'Connected', 'ok'], connecting: ['Connecting…', ''], offline: ['Host offline', 'bad']}[j.status] || [j.status, ''];
     f('status').textContent = st[0];
     f('status').className = 'pill ' + st[1];
     f('peers').textContent = j.peers;
@@ -822,6 +841,10 @@ function renderSettings(s) {
   $$('.fwwarn').forEach(w => w.hidden = s.firewall !== 'missing');
   $('#set-dldir').value = c.downloadDir;
   if (document.activeElement !== $('#set-chatname')) $('#set-chatname').value = c.chatName || '';
+  $('#set-background').checked = c.background;
+  $('#set-pause').textContent = s.paused ? 'Resume sharing' : 'Pause sharing';
+  $('#paused-bar').hidden = !s.paused;
+  if (!c.chatName && $('#welcome').hidden && !welcomeDone) { $('#welcome').hidden = false; setTimeout(() => $('#welcome-name').focus(), 50); }
   const rs = {off: 'Off', downloading: 'Downloading helper…', starting: 'Starting…', on: 'On: ' + n.relayURL, error: n.relayErr || 'Error'}[n.relayState] || n.relayState;
   $('#relay-state').textContent = rs;
   $('#relay-btn').textContent = ['on', 'starting', 'downloading'].includes(n.relayState) ? 'Turn relay off' : 'Turn relay on';
@@ -830,7 +853,8 @@ function renderSettings(s) {
   // sidebar pill
   const pill = $('#netpill');
   let txt = 'Local network only', cls = 'mid';
-  if (!n.checked) { txt = 'Checking network…'; cls = ''; }
+  if (s.paused) { txt = 'Sharing paused'; cls = 'mid'; }
+  else if (!n.checked) { txt = 'Checking network…'; cls = ''; }
   else if (n.upnp === 'idle') { txt = 'Ready. Nothing exposed'; cls = 'ok'; }
   else if (n.publicOK) { txt = 'Internet links ready'; cls = 'ok'; }
   else if (n.relayState === 'on') { txt = 'Relay active'; cls = 'ok'; }
@@ -841,8 +865,8 @@ function renderSettings(s) {
 
 // ------------------------------------------------------------- about / update
 let updInfo = null;
-$('#upd-btn').onclick = e => busyBtn(e.currentTarget, async () => {
-  const msg = $('#upd-msg');
+const updClick = msgSel => e => busyBtn(e.currentTarget, async () => {
+  const msg = $(msgSel);
   const lbl = $('.lbl', e.currentTarget);
   if (updInfo && updInfo.available) {
     lbl.textContent = 'Updating…';
@@ -858,6 +882,8 @@ $('#upd-btn').onclick = e => busyBtn(e.currentTarget, async () => {
     else { msg.textContent = 'You\'re on the latest version (' + S.version + ').'; lbl.textContent = 'Check for Updates'; }
   } catch (er) { msg.textContent = er.message; lbl.textContent = 'Check for Updates'; }
 });
+$('#upd-btn').onclick = updClick('#upd-msg');
+$('#set-upd-btn').onclick = updClick('#set-upd-msg');
 
 // ------------------------------------------------------------- chat
 const chatName = () => (S && S.config.chatName) || '';
@@ -901,6 +927,24 @@ async function pollRecvChat(tok) {
 }
 setTimeout(watchRecvChats, 3000);
 $('#set-chatname-save').onclick = e => busyBtn(e.currentTarget, async () => { await rpc('setConfig', {chatName: $('#set-chatname').value}); toast('Chat name saved'); await refresh(); });
+
+// ------------------------------------------------------------- name, background, pause
+let welcomeDone = false;
+$('#welcome-form').onsubmit = e => {
+  e.preventDefault();
+  const n = $('#welcome-name').value.trim();
+  if (!n) { $('#welcome-name').focus(); return; }
+  busyBtn($('#welcome-go'), async () => {
+    await rpc('setConfig', {chatName: n});
+    welcomeDone = true; $('#welcome').hidden = true;
+    toast('Hi ' + n + '!');
+    await refresh();
+  });
+};
+$('#set-background').onchange = e => rpc('setConfig', {background: e.target.checked}).then(() => toast(e.target.checked ? 'ShareMile keeps running in the background when you close the window' : 'Closing the window now exits ShareMile'));
+const pauseClick = e => busyBtn(e.currentTarget, async () => { const on = !S.paused; await rpc('pauseAll', {on}); toast(on ? 'Sharing paused' : 'Sharing resumed'); await refresh(); });
+$('#set-pause').onclick = pauseClick;
+$('#paused-resume').onclick = pauseClick;
 
 // ------------------------------------------------------------- paste buttons
 $$('[data-paste]').forEach(b => b.onclick = async () => {

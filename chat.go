@@ -421,6 +421,7 @@ func chatCall(kind, id string, since int64, post *chatPost) (any, error) {
 			req, _ = http.NewRequest("GET", u+"?since="+strconv.FormatInt(since, 10)+"&name="+url.QueryEscape(name), nil)
 		}
 		req.Header.Set("X-SM-Chat", key)
+		setNameHeader(req)
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := chatHTTP.Do(req)
 		if err != nil {

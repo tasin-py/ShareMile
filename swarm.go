@@ -43,11 +43,13 @@ type Manifest struct {
 	Name  string   `json:"name"`
 	Files []*NFile `json:"files"`
 	Total int64    `json:"total"`
-	Rev   int64    `json:"rev"` // changes whenever the host edits the file list
+	Rev   int64    `json:"rev"`            // changes whenever the host edits the file list
+	Host  string   `json:"host,omitempty"` // the host's name
 }
 
 type PeerInfo struct {
 	ID        string    `json:"id"`
+	Name      string    `json:"name,omitempty"`
 	Endpoints []string  `json:"endpoints"`
 	Have      []string  `json:"have"`
 	Seen      time.Time `json:"-"`
@@ -58,16 +60,20 @@ var selfPeerID = randToken(8)
 // ---------------------------------------------------------------- host side
 
 type HostNet struct {
-	cfg     *HostedNetCfg
-	key     []byte
-	id      string
-	mu      sync.Mutex
-	files   map[string]*SFile
-	man     *Manifest
-	scanErr string
-	peers   map[string]*PeerInfo
-	hashes  map[string]*hashJob
-	chat    *Chat
+	cfg      *HostedNetCfg
+	key      []byte
+	id       string
+	mu       sync.Mutex
+	files    map[string]*SFile
+	man      *Manifest
+	scanErr  string
+	peers    map[string]*PeerInfo
+	hashes   map[string]*hashJob
+	scanMu   sync.Mutex    // one rescan at a time
+	lastScan time.Time     // when the folders were last rescanned
+	scanDur  time.Duration // how long that took
+	stopped  atomic.Bool   // the network was deleted
+	chat     *Chat
 	Meter
 }
 
@@ -98,7 +104,12 @@ func fileNetID(f *SFile) string {
 	return hex.EncodeToString(h[:8])
 }
 
-func (h *HostNet) rescan() {
+// rescan re-reads the network's folders. It returns true when the file list
+// changed; only then do members re-download the list.
+func (h *HostNet) rescan() bool {
+	h.scanMu.Lock()
+	defer h.scanMu.Unlock()
+	start := time.Now()
 	cfgMu.Lock()
 	roots := append([]string(nil), h.cfg.Roots...)
 	name := h.cfg.Name
@@ -110,12 +121,19 @@ func (h *HostNet) rescan() {
 	files, _, err := scanPaths(roots)
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.lastScan, h.scanDur = time.Now(), time.Since(start)
 	rev := time.Now().UnixMilli()
+	if h.man != nil && rev <= h.man.Rev {
+		rev = h.man.Rev + 1
+	}
 	if err != nil {
+		changed := h.man == nil || len(h.man.Files) > 0 || h.man.Name != name || h.scanErr != err.Error()
 		h.scanErr = err.Error()
-		h.man = &Manifest{Name: name, Rev: rev}
+		if changed {
+			h.man = &Manifest{Name: name, Rev: rev}
+		}
 		h.files = map[string]*SFile{}
-		return
+		return changed
 	}
 	h.scanErr = ""
 	m := &Manifest{Name: name, Rev: rev}
@@ -129,7 +147,53 @@ func (h *HostNet) rescan() {
 		m.Total += f.Size
 		m.Files = append(m.Files, &NFile{ID: id, Rel: f.Rel, Size: f.Size, Kind: f.Kind, MTime: f.MTime, CTime: f.CTime})
 	}
-	h.files, h.man = fm, m
+	h.files = fm
+	if old := h.man; old != nil && old.Name == m.Name && sameFiles(old.Files, m.Files) {
+		return false // nothing changed: members keep their list
+	}
+	h.man = m
+	return true
+}
+
+func sameFiles(a, b []*NFile) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID || a[i].CTime != b[i].CTime {
+			return false
+		}
+	}
+	return true
+}
+
+// autoRescan keeps a hosted network's file list current when files are added,
+// changed or deleted in its folders. Big libraries are checked less often so
+// the disk stays quiet: every 45 s, or 30x the last scan time, at most 10 min.
+func (h *HostNet) autoRescan() {
+	for !h.stopped.Load() {
+		h.mu.Lock()
+		wait := 30 * h.scanDur
+		h.mu.Unlock()
+		wait = max(45*time.Second, min(wait, 10*time.Minute))
+		time.Sleep(wait)
+		cfgMu.Lock()
+		active := h.cfg.Active
+		cfgMu.Unlock()
+		if active && !h.stopped.Load() {
+			h.rescan()
+		}
+	}
+}
+
+// freshen rescans now unless that just happened (a member pressed Refresh).
+func (h *HostNet) freshen() {
+	h.mu.Lock()
+	recent := time.Since(h.lastScan) < 2*time.Second
+	h.mu.Unlock()
+	if !recent {
+		h.rescan()
+	}
 }
 
 func (h *HostNet) method() string {
@@ -394,6 +458,7 @@ func startHostedNet(c *HostedNetCfg) *HostNet {
 	swarmMu.Lock()
 	hosted[h.id] = h
 	swarmMu.Unlock()
+	go h.autoRescan()
 	ensureDiscovery()
 	return h
 }
@@ -406,6 +471,7 @@ func removeHostedNet(id string) {
 	if h == nil {
 		return
 	}
+	h.stopped.Store(true)
 	cfgMu.Lock()
 	out := cfg.Networks[:0]
 	for _, c := range cfg.Networks {
@@ -514,9 +580,16 @@ func handleNetwork(w http.ResponseWriter, r *http.Request) {
 		case "ping":
 			writeJSON(w, map[string]any{"ok": true, "role": "host", "name": h.cfg.Name})
 		case "manifest":
+			if r.URL.Query().Get("fresh") == "1" {
+				h.freshen()
+			}
 			h.mu.Lock()
-			m := h.man
+			var m Manifest
+			if h.man != nil {
+				m = *h.man
+			}
 			h.mu.Unlock()
+			m.Host = userName()
 			writeJSON(w, m)
 		case "h":
 			if len(parts) < 3 {
@@ -561,6 +634,7 @@ func handleNetwork(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			p.Seen = time.Now()
+			p.Name = cleanChatName(p.Name)
 			h.mu.Lock()
 			if r.URL.Query().Get("leave") == "1" {
 				delete(h.peers, p.ID)
@@ -794,7 +868,7 @@ func (j *JoinNet) connect() {
 		man  *Manifest
 	}
 	ch := make(chan res, len(cands))
-	var replaced atomic.Bool
+	var replaced, hostPaused atomic.Bool
 	for _, e := range cands {
 		go func(e string) {
 			resp, err := j.req(ctx, "GET", e, "/manifest", nil)
@@ -805,6 +879,9 @@ func (j *JoinNet) connect() {
 			defer resp.Body.Close()
 			if resp.StatusCode == http.StatusGone {
 				replaced.Store(true)
+			}
+			if resp.StatusCode == http.StatusServiceUnavailable {
+				hostPaused.Store(true)
 			}
 			var m Manifest
 			if resp.StatusCode != 200 || json.NewDecoder(resp.Body).Decode(&m) != nil {
@@ -835,6 +912,8 @@ func (j *JoinNet) connect() {
 	j.err = "Can't reach the host. They may be offline, or their address changed (ask them for a fresh code)."
 	if replaced.Load() {
 		j.err = "The host replaced this network's secret code. Ask them for the new code and join with it."
+	} else if hostPaused.Load() {
+		j.err = "The host paused sharing. ShareMile reconnects by itself when they resume."
 	}
 	j.mu.Unlock()
 }
@@ -852,7 +931,7 @@ func (j *JoinNet) announce(host string, leave bool) error {
 		cfgMu.Unlock()
 		eps = selfEndpoints(false)
 	}
-	b, _ := json.Marshal(PeerInfo{ID: selfPeerID, Endpoints: eps, Have: have})
+	b, _ := json.Marshal(PeerInfo{ID: selfPeerID, Name: userName(), Endpoints: eps, Have: have})
 	q := ""
 	if leave {
 		q = "?leave=1"
@@ -878,25 +957,40 @@ func (j *JoinNet) announce(host string, leave bool) error {
 	stale := !leave && out.Rev != 0 && (j.man == nil || j.man.Rev != out.Rev)
 	j.mu.Unlock()
 	if stale {
-		go j.refreshManifest() // the host edited the file list
+		go j.refreshManifest(false) // the host's file list changed
 	}
 	return nil
 }
 
-func (j *JoinNet) refreshManifest() error {
+// refreshManifest downloads the host's file list. fresh=true (the Refresh
+// button) first asks the host to recheck its folders.
+func (j *JoinNet) refreshManifest(fresh bool) error {
 	j.mu.Lock()
 	host := j.host
 	j.mu.Unlock()
 	if host == "" {
 		j.connect()
-		return nil
+		j.mu.Lock()
+		online := j.host != ""
+		j.mu.Unlock()
+		if !online {
+			return errors.New("can't reach the host right now")
+		}
+		if !fresh {
+			return nil
+		}
+		return j.refreshManifest(true)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	resp, err := j.req(ctx, "GET", host, "/manifest", nil)
+	q := ""
+	if fresh {
+		q = "?fresh=1"
+	}
+	resp, err := j.req(ctx, "GET", host, "/manifest"+q, nil)
 	if err != nil {
 		go j.connect()
-		return err
+		return errors.New("can't reach the host right now")
 	}
 	defer resp.Body.Close()
 	var m Manifest

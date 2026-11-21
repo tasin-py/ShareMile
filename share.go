@@ -106,7 +106,53 @@ type Share struct {
 	Received    []string
 	recvMu      sync.Mutex
 	chat        *Chat
+	visitors    map[string]time.Time // names of app/browser users seen recently
+	visMu       sync.Mutex
 	Meter
+}
+
+// userName is the name this PC's user picked (shown to others).
+func userName() string {
+	cfgMu.Lock()
+	defer cfgMu.Unlock()
+	return cfg.ChatName
+}
+
+// noteVisitor remembers a named visitor (from the X-SM-Name header).
+func (s *Share) noteVisitor(name string) {
+	name = cleanChatName(name)
+	if name == "" {
+		return
+	}
+	s.visMu.Lock()
+	defer s.visMu.Unlock()
+	if s.visitors == nil {
+		s.visitors = map[string]time.Time{}
+	}
+	if len(s.visitors) > 200 {
+		for k, t := range s.visitors {
+			if time.Since(t) > 2*time.Minute {
+				delete(s.visitors, k)
+			}
+		}
+	}
+	if len(s.visitors) <= 200 {
+		s.visitors[name] = time.Now()
+	}
+}
+
+// connected lists visitors seen in the last 90 seconds.
+func (s *Share) connected() []string {
+	s.visMu.Lock()
+	defer s.visMu.Unlock()
+	out := []string{}
+	for n, t := range s.visitors {
+		if time.Since(t) < 90*time.Second {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 var (

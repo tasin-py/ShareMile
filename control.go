@@ -104,6 +104,7 @@ type rpcArgs struct {
 	Emoji       string   `json:"emoji"`
 	Mentions    []string `json:"mentions"`
 	ChatName    *string  `json:"chatName"`
+	Background  *bool    `json:"background"`
 }
 
 func handleRPC(w http.ResponseWriter, r *http.Request, method string) {
@@ -271,7 +272,16 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		}
 		switch method {
 		case "manifest":
-			return true, j.refreshManifest()
+			if err := j.refreshManifest(true); err != nil {
+				return nil, err
+			}
+			j.mu.Lock()
+			n := 0
+			if j.man != nil {
+				n = len(j.man.Files)
+			}
+			j.mu.Unlock()
+			return n, nil
 		case "download":
 			return j.startDownloads(a.FileIDs), nil
 		case "cancel":
@@ -371,6 +381,9 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		return chatCall(a.Kind, a.ID, a.Since, nil)
 	case "chatPost":
 		return chatCall(a.Kind, a.ID, 0, &chatPost{Op: a.Op, Text: a.Text, Reply: a.Reply, Mentions: a.Mentions, Msg: a.Msg, Emoji: a.Emoji})
+	case "pauseAll":
+		setPausedAll(a.On)
+		return true, nil
 	case "bdixCheck":
 		startBDIXCheck()
 		return true, nil
@@ -424,6 +437,12 @@ func setConfig(a rpcArgs) error {
 		v := *a.AutoRelay
 		cfg.AutoRelay = &v
 	}
+	bgChanged := false
+	if a.Background != nil {
+		v := *a.Background
+		cfg.Background = &v
+		bgChanged = true
+	}
 	if a.ChatName != nil {
 		n := cleanChatName(*a.ChatName)
 		if n == "" {
@@ -435,6 +454,9 @@ func setConfig(a rpcArgs) error {
 	saveConfigLocked()
 	port := cfg.Port
 	cfgMu.Unlock()
+	if bgChanged {
+		go syncTray()
+	}
 	if restart {
 		unmapUPnP()
 		if err := startPublicServer(port); err != nil {
@@ -513,7 +535,7 @@ func buildState() map[string]any {
 		so = append(so, map[string]any{
 			"id": s.ID, "name": s.Name, "count": len(s.Files), "total": s.Total, "links": links, "best": bestURL,
 			"allowUpload": s.AllowUpload, "visits": s.hits.Load(), "sent": s.bytes.Load(), "speed": s.Speed(),
-			"active": s.active.Load(), "received": recv, "roots": s.Roots, "chat": chatSeq,
+			"active": s.active.Load(), "received": recv, "roots": s.Roots, "chat": chatSeq, "connected": s.connected(),
 		})
 	}
 
@@ -538,12 +560,19 @@ func buildState() map[string]any {
 			count, total = len(h.man.Files), h.man.Total
 		}
 		h.mu.Unlock()
+		members := []string{}
+		for _, p := range h.livePeers() {
+			if p.Name != "" && !contains(members, p.Name) {
+				members = append(members, p.Name)
+			}
+		}
+		sort.Strings(members)
 		h.chat.mu.Lock()
 		hchat := h.chat.Seq
 		h.chat.mu.Unlock()
 		ho = append(ho, map[string]any{
 			"id": h.id, "name": h.cfg.Name, "code": h.code(), "count": count, "total": total, "roots": h.cfg.Roots,
-			"active": h.cfg.Active, "method": h.method(), "methodNote": methodStatus(h.method()), "excluded": len(h.cfg.Exclude), "peers": len(h.livePeers()), "sent": h.bytes.Load(), "speed": h.Speed(), "err": scanErr, "chat": hchat,
+			"active": h.cfg.Active, "method": h.method(), "methodNote": methodStatus(h.method()), "excluded": len(h.cfg.Exclude), "peers": len(h.livePeers()), "sent": h.bytes.Load(), "speed": h.Speed(), "err": scanErr, "chat": hchat, "members": members,
 		})
 	}
 	var jo []map[string]any
@@ -551,9 +580,11 @@ func buildState() map[string]any {
 		j.mu.Lock()
 		var files []*NFile
 		name := j.cfg.Name
+		hostName := ""
 		if j.man != nil {
 			files = j.man.Files
 			name = j.man.Name
+			hostName = j.man.Host
 		}
 		peers := len(j.peers)
 		status, errS := j.status, j.err
@@ -573,7 +604,7 @@ func buildState() map[string]any {
 		}
 		jo = append(jo, map[string]any{
 			"id": j.id, "name": name, "status": status, "err": errS, "files": files, "peers": peers,
-			"tasks": j.taskList(), "have": have, "seed": seed, "uploaded": j.bytes.Load(), "code": code, "bookmarked": bookmarked, "chat": jchat,
+			"tasks": j.taskList(), "have": have, "seed": seed, "uploaded": j.bytes.Load(), "code": code, "bookmarked": bookmarked, "chat": jchat, "hostName": hostName,
 		})
 	}
 	fwMu.Lock()
@@ -588,7 +619,8 @@ func buildState() map[string]any {
 	return map[string]any{
 		"app": appName, "version": appVersion, "repo": "https://github.com/" + repoSlug,
 		"net": getNet(), "links": eps, "shares": so, "hosted": ho, "joined": jo, "receives": recvView(), "bookmarks": bookmarksView(),
-		"config":   map[string]any{"port": c.Port, "downloadDir": c.DownloadDir, "theme": c.Theme, "useUpnp": c.UseUPnP, "linkMode": c.LinkMode, "autoRelay": c.AutoRelay != nil && *c.AutoRelay, "chatName": c.ChatName},
+		"config":   map[string]any{"port": c.Port, "downloadDir": c.DownloadDir, "theme": c.Theme, "useUpnp": c.UseUPnP, "linkMode": c.LinkMode, "autoRelay": c.AutoRelay != nil && *c.AutoRelay, "chatName": c.ChatName, "background": c.Background == nil || *c.Background},
+		"paused":   isPausedAll(),
 		"firewall": fw, "publicErr": pe, "listenPort": publicPort,
 	}
 }
