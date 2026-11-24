@@ -112,7 +112,7 @@ flowchart LR
 - **Hosts stay in control**: add or remove folders and single files, rename the network, and choose how members connect (Automatic, Relay, BDIX Transfer, Same Wi-Fi, IPv6). Members see changes within about 30 seconds.
 - **Sort file lists** by name, size or date modified.
 - **Chat**: talk to the people downloading your Quick Share (from the app or right in their browser, phones included), or use a **group chat** inside a Share Network. **@mentions** with name suggestions, **reply** to a specific message, and **reactions** (👍 ❤️ 😂 😮 😢 🙏 🔥 🎉). Messages stay on the sharer's / host's PC; nothing goes through an outside server. When someone **@mentions you**, a soft chime plays (unless you're already looking at that chat); ordinary messages stay silent.
-- **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart.
+- **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart. If the sender restarts and shares the same files again under a new link, opening that link continues the old download; files you already have are never fetched twice.
 - **Download with IDM** (shown when IDM is installed; opens IDM's normal download window for each file) or **Browser download**, if you prefer.
 - **New link / New code**: retire a link or a network code in one click. Anyone holding the old one loses access.
 - **Bookmarks**: save your favourite network codes; they stay in the app and connect in one click.
@@ -167,7 +167,7 @@ People without the app just open the link in a browser. With the app it's faster
    Or press **Download with IDM** (IDM opens its usual download window for each file, so you can start or cancel it there), or **Browser download**.
 4. **Chat with sender** opens a chat with the person sharing. The **✕** closes the file list.
 
-Downloads use 8 connections at once and survive anything: pause and resume, a dropped connection, closing the app, even a crash. If the sender's relay link changes (their app restarted), paste their new link and the download continues.
+Downloads use 8 connections at once and survive anything: pause and resume, a dropped connection, closing the app, even a crash. If the sender's link changes (their app or PC restarted and they shared the files again), paste their new link on **Receive** and the old download continues where it stopped. Files already finished are kept, not downloaded again.
 
 <p align="center">
   <img src="docs/screenshots/app-receive.png" alt="Receive: pick files, then Download, Download with IDM or Browser download" width="80%">
@@ -263,15 +263,20 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.6.1
+.\build.ps1 -Version 1.6.2
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.1\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.2\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.6.2 (2026-11-24)
+- Fix: when the sender restarts and shares the same files again, their new link now continues your unfinished download instead of starting a second one that downloaded every finished file again as "name (2)" copies.
+- Fix: a duplicate download already made by an older version is folded into the original when you open the new link (its leftover partial files are removed), and files already saved with the sender's size and date are recognised instead of downloaded again.
+- Fix: removing a download no longer deletes a partial file that another download in the list still uses.
+
 v1.6.1 (2026-11-22)
 - Changed: the relay starts when ShareMile opens (with Auto relay on), so the relay link is ready the moment you share instead of 10 to 30 seconds later. Turning Auto relay off closes an idle relay; pressing Stop relay keeps it off until you start it again.
 - New: a relay that couldn't start (for example, no internet yet at startup) or stopped by itself is retried once a minute.

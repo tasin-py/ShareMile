@@ -167,12 +167,157 @@ func recvOpen(raw string) (*recvManifest, error) {
 			t.mu.Unlock()
 		}
 	}
+	relinked, drop, orphans := relinkRecvLocked(&m)
+	revive = append(revive, relinked...)
 	saveRecvLocked()
 	recvMu.Unlock()
+	if len(drop) > 0 {
+		for _, d := range drop {
+			d.pause()
+		}
+		time.Sleep(300 * time.Millisecond) // let their connections let go of the part files
+		for _, p := range orphans {
+			os.Remove(p)
+			os.Remove(p + ".json")
+		}
+		recvMu.Lock()
+		kept := recvTasks[:0]
+		for _, t := range recvTasks {
+			gone := false
+			for _, d := range drop {
+				gone = gone || t == d
+			}
+			if !gone {
+				kept = append(kept, t)
+			}
+		}
+		recvTasks = kept
+		saveRecvLocked()
+		recvMu.Unlock()
+	}
 	for _, t := range revive {
 		t.start()
 	}
 	return &m, nil
+}
+
+// relinkRecvLocked handles a sender who shared the same files again under a new
+// link (after a restart the old link is gone). Unfinished downloads of those
+// files move to the new link and continue where they stopped, and a newer
+// duplicate download of the same files is folded into the older one, so
+// finished files are never fetched twice. Returns the downloads to start and the
+// duplicates to remove, plus the duplicates' part files of files that are
+// already finished. Caller holds recvMu.
+func relinkRecvLocked(m *recvManifest) (revive, drop []*RecvTask, orphans []string) {
+	byRel := map[string]RecvFile{}
+	for _, f := range m.Files {
+		byRel[f.Rel] = f
+	}
+	// Downloads of this share (same name, every file still offered at the same size).
+	var group []*RecvTask
+	moved := false
+	for _, t := range recvTasks {
+		t.mu.Lock()
+		ok := t.State != "done" && t.Name == m.Name && len(t.Files) > 0
+		for _, f := range t.Files {
+			if g, has := byRel[f.Rel]; !ok || !has || g.Size != f.Size {
+				ok = false
+				break
+			}
+		}
+		t.mu.Unlock()
+		if !ok {
+			continue
+		}
+		group = append(group, t)
+		if t.Token != m.Token {
+			moved = true
+		}
+	}
+	if !moved {
+		return nil, nil, nil // nothing came from an older link
+	}
+	sort.SliceStable(group, func(i, j int) bool { return group[i].Added.Before(group[j].Added) })
+	wasRunning := map[*RecvTask]bool{}
+	for _, t := range group {
+		t.mu.Lock()
+		wasRunning[t] = t.State == "downloading"
+		if t.Token != m.Token {
+			// Same files, new link: file numbers can differ, so map them by path.
+			rel := map[int]string{}
+			for i, f := range t.Files {
+				rel[f.ID] = f.Rel
+				t.Files[i].ID = byRel[f.Rel].ID
+			}
+			for i, id := range t.Done {
+				t.Done[i] = byRel[rel[id]].ID
+			}
+			t.Token, t.Base = m.Token, m.Base
+			if m.By != "" {
+				t.By = m.By
+			}
+		}
+		t.mu.Unlock()
+	}
+	// Fold a later download into an earlier one that covers all of its files.
+	merged := map[*RecvTask]bool{}
+	for i, d := range group {
+		for _, k := range group[:i] {
+			if merged[k] || k.Dir != d.Dir {
+				continue
+			}
+			k.mu.Lock()
+			d.mu.Lock()
+			inK := map[int]bool{}
+			for _, f := range k.Files {
+				inK[f.ID] = true
+			}
+			covered := true
+			for _, f := range d.Files {
+				covered = covered && inK[f.ID]
+			}
+			if covered {
+				have := map[int]bool{}
+				for _, id := range k.Done {
+					have[id] = true
+				}
+				inD := map[int]bool{}
+				for _, id := range d.Done {
+					inD[id] = true
+					if !have[id] {
+						k.Done = append(k.Done, id)
+					}
+				}
+				for _, f := range d.Files {
+					if have[f.ID] && !inD[f.ID] {
+						orphans = append(orphans, filepath.Join(d.Dir, cleanRel(f.Rel))+".smpart")
+					}
+				}
+			}
+			d.mu.Unlock()
+			k.mu.Unlock()
+			if covered {
+				merged[d] = true
+				drop = append(drop, d)
+				if wasRunning[d] {
+					wasRunning[k] = true
+				}
+				break
+			}
+		}
+	}
+	for _, t := range group {
+		if merged[t] {
+			continue
+		}
+		t.mu.Lock()
+		st := t.State
+		t.mu.Unlock()
+		if st == "error" || wasRunning[t] {
+			revive = append(revive, t)
+		}
+	}
+	return revive, drop, orphans
 }
 
 func pickFiles(m *recvManifest, ids []string) []RecvFile {
@@ -230,18 +375,20 @@ func recvStart(token string, ids []string) (*RecvTask, error) {
 	if len(files) == 0 {
 		return nil, errors.New("select at least one file")
 	}
-	// Two unfinished downloads of the same file would write the same part file.
+	// Two unfinished downloads of the same file would write the same part file
+	// (also across links: the sender may have shared the same files again).
+	dir := recvRoot(m)
 	recvMu.Lock()
 	for _, o := range recvTasks {
 		o.mu.Lock()
-		busy := o.Token == token && o.State != "done"
+		busy := o.Dir == dir && o.State != "done"
 		o.mu.Unlock()
 		if !busy {
 			continue
 		}
 		for _, f := range files {
 			for _, g := range o.Files {
-				if f.ID == g.ID && !o.isDone(g.ID) {
+				if f.Rel == g.Rel && !o.isDone(g.ID) {
 					recvMu.Unlock()
 					return nil, errors.New("some of these files are already in your downloads list. Resume that download, or cancel it first")
 				}
@@ -249,7 +396,7 @@ func recvStart(token string, ids []string) (*RecvTask, error) {
 		}
 	}
 	recvMu.Unlock()
-	t := &RecvTask{ID: randToken(6), Token: token, Base: m.Base, Name: m.Name, By: m.By, Dir: recvRoot(m),
+	t := &RecvTask{ID: randToken(6), Token: token, Base: m.Base, Name: m.Name, By: m.By, Dir: dir,
 		Files: files, State: "downloading", Added: time.Now()}
 	for _, f := range files {
 		t.Total += f.Size
@@ -393,6 +540,14 @@ func (t *RecvTask) run(ctx context.Context) error {
 		if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
 			return err
 		}
+		if alreadyHave(final, part, f) {
+			// Finished earlier (e.g. under an older link): don't fetch it again.
+			t.mu.Lock()
+			t.Done = append(t.Done, f.ID)
+			t.mu.Unlock()
+			got += f.Size
+			continue
+		}
 		fr := &recvFileRun{t: t, rf: f, final: final, part: part}
 		if b, err := os.ReadFile(part + ".json"); err == nil {
 			json.Unmarshal(b, &fr.st)
@@ -482,6 +637,21 @@ feed:
 		return err
 	}
 	return firstErr
+}
+
+// alreadyHave reports whether a file was already downloaded in full: no part
+// file is pending, and the saved file has the sender's size and modified time
+// (ShareMile keeps the sender's dates on every file it finishes).
+func alreadyHave(final, part string, f RecvFile) bool {
+	if f.MTime <= 0 || fileExists(part) {
+		return false
+	}
+	st, err := os.Stat(final)
+	if err != nil || st.IsDir() || st.Size() != f.Size {
+		return false
+	}
+	d := st.ModTime().UnixMilli() - f.MTime
+	return d > -2000 && d < 2000
 }
 
 func min64(a, b int64) int64 {
@@ -695,8 +865,22 @@ func removeRecv(id string, deleteParts bool) {
 	}
 	t.pause()
 	if deleteParts {
+		// Part files another download still uses (the same files under another link) stay.
+		inUse := map[string]bool{}
+		recvMu.Lock()
+		for _, o := range recvTasks {
+			if o == t {
+				continue
+			}
+			for _, f := range o.Files {
+				if !o.isDone(f.ID) {
+					inUse[filepath.Join(o.Dir, cleanRel(f.Rel))] = true
+				}
+			}
+		}
+		recvMu.Unlock()
 		for _, f := range t.Files {
-			if !t.isDone(f.ID) {
+			if !t.isDone(f.ID) && !inUse[filepath.Join(t.Dir, cleanRel(f.Rel))] {
 				p := filepath.Join(t.Dir, cleanRel(f.Rel)) + ".smpart"
 				os.Remove(p)
 				os.Remove(p + ".json")
