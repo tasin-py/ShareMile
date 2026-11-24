@@ -565,12 +565,12 @@ func handleNetwork(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "code replaced", http.StatusGone)
 		return
 	} else {
-		addStrike(r)
+		addStrike(r, "n/"+parts[0])
 		http.NotFound(w, r)
 		return
 	}
 	if r.Header.Get("X-SM-Auth") != authToken(key) {
-		addStrike(r)
+		addStrike(r, "a/"+parts[0]+"/"+r.Header.Get("X-SM-Auth"))
 		http.Error(w, "wrong code", http.StatusForbidden)
 		return
 	}

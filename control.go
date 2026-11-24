@@ -341,7 +341,7 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		}
 		return map[string]any{"manifest": m, "idm": idmPath() != ""}, nil
 	case "recvStart":
-		t, err := recvStart(a.Code, a.FileIDs)
+		t, err := recvStart(a.Code, a.FileIDs, a.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -350,6 +350,16 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		return recvIDM(a.Code, a.FileIDs)
 	case "recvBrowser":
 		return true, recvBrowser(a.Code, a.FileIDs)
+	case "pickFolder":
+		p, err := pickPaths(true, a.Name)
+		if err != nil || len(p) == 0 {
+			return "", err
+		}
+		return p[0], nil
+	case "recvRelocate":
+		return recvRelocate(a.ID, a.Path)
+	case "recvRelink":
+		return true, recvRelink(a.ID, a.URL)
 	case "recvPause":
 		if t := findRecv(a.ID); t != nil {
 			t.pause()

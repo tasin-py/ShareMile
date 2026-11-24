@@ -70,6 +70,10 @@
           <div class="row gap"><select id="rc-sort" class="sort-sel" title="Sort files"></select><div class="pathin rc-filter"><input id="rc-filter" placeholder="Filter files…" spellcheck="false"></div></div>
         </div>
         <div class="rc-files" id="rc-files"></div>
+        <div class="rc-save">
+          <span class="muted">Save to</span><span class="rc-path" id="rc-dir"></span>
+          <button class="btn small" id="rc-dir-btn" title="Choose a folder. If an earlier download of these files is there, ShareMile checks them and continues">Change</button>
+        </div>
         <div class="row between wrap gap">
           <span class="muted tnum" id="rc-selsum"></span>
           <div class="row gap wrap">
@@ -244,6 +248,15 @@
     <p>What should people call you? Your name is shown when you connect with someone and in chats. You can change it later in Settings.</p>
     <input id="welcome-name" maxlength="32" placeholder="Your name" autocomplete="off" spellcheck="false">
     <button class="btn primary" id="welcome-go">Continue</button>
+  </form>
+</div>
+<div class="menu" id="menu" role="menu" hidden></div>
+<div class="welcome" id="relink" hidden>
+  <form class="welcome-in modal-in" id="relink-form">
+    <h2>New download link</h2>
+    <p>Paste the sender's new link for <b id="relink-name"></b>. The download continues where it stopped, and files you already have aren't downloaded again.</p>
+    <div class="row gap"><div class="pathin grow"><input id="relink-url" placeholder="http://…/s/…" spellcheck="false" autocomplete="off"></div><button type="button" class="btn" data-paste="relink-url">Paste</button></div>
+    <div class="modal-actions"><button type="button" class="btn" id="relink-cancel">Cancel</button><button class="btn primary" id="relink-go">Continue download</button></div>
   </form>
 </div>
 <div class="toasts" id="toasts"></div>

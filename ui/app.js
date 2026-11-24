@@ -475,6 +475,8 @@ function rcRender() {
   $('#rc-by').hidden = !RC.by;
   $('#rc-by').textContent = RC.by ? 'Connected with ' + RC.by : '';
   setBadge($('#rc-chat'), 'recv:' + RC.token, recvSeq[RC.token]);
+  $('#rc-dir').textContent = rcDir || S.config.downloadDir;
+  $('#rc-dir').title = rcDir || S.config.downloadDir;
   $('#rc-sum').textContent = RC.files.length.toLocaleString() + (RC.files.length === 1 ? ' file · ' : ' files · ') + fmtBytes(RC.total);
   const q = $('#rc-filter').value.trim().toLowerCase();
   const shown = sortFiles(RC.files.filter(f => !q || f.rel.toLowerCase().includes(q))).slice(0, 3000);
@@ -495,11 +497,92 @@ $('#rc-chat').onclick = () => openRecvChat(RC.token, RC.name);
 $('#rc-all').onchange = e => { rcSel.clear(); if (e.target.checked) RC.files.forEach(f => rcSel.add(f.id)); rcRender(); };
 $('#rc-filter').oninput = () => rcRender();
 const rcIds = () => [...rcSel].map(String);
-$('#rc-dl').onclick = e => busyBtn(e.currentTarget, async () => {
-  await rpc('recvStart', {code: RC.token, fileIds: rcIds()});
-  toast('Downloading into ' + S.config.downloadDir);
-  RC = null; rcRender(); await refresh();
+let rcDir = null; // folder picked for this download (null: the download folder)
+$('#rc-dir-btn').onclick = e => busyBtn(e.currentTarget, async () => {
+  const p = await rpc('pickFolder', {name: 'Choose where to save these files'});
+  if (p) { rcDir = p; rcRender(); }
 });
+$('#rc-dl').onclick = e => busyBtn(e.currentTarget, async () => {
+  await rpc('recvStart', {code: RC.token, fileIds: rcIds(), path: rcDir || ''});
+  toast(rcDir ? 'Saving into ' + rcDir + '. Files already there are checked first' : 'Downloading into ' + S.config.downloadDir);
+  RC = null; rcDir = null; rcRender(); await refresh();
+});
+
+// ------------------------------------------------------------- ⋮ menus
+let menuFor = null;
+function closeMenu(refocus = true) {
+  const m = $('#menu');
+  if (m.hidden) return;
+  m.hidden = true;
+  if (menuFor) { menuFor.setAttribute('aria-expanded', 'false'); if (refocus) menuFor.focus(); }
+  menuFor = null;
+}
+function openMenu(btn, items) {
+  const m = $('#menu');
+  if (menuFor === btn) { closeMenu(); return; }
+  closeMenu(false);
+  m.innerHTML = '';
+  for (const it of items) {
+    if (it === '-') { m.append(document.createElement('hr')); continue; }
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'menuitem');
+    b.textContent = it.label;
+    if (it.danger) b.className = 'danger';
+    b.onclick = () => { closeMenu(false); it.run(); };
+    m.append(b);
+  }
+  m.hidden = false;
+  const r = btn.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+  m.style.top = (r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - h - 6) : r.bottom + 6) + 'px';
+  menuFor = btn; btn.setAttribute('aria-expanded', 'true');
+  $('button', m).focus();
+}
+document.addEventListener('mousedown', e => { if (menuFor && !$('#menu').contains(e.target) && !menuFor.contains(e.target)) closeMenu(false); });
+window.addEventListener('blur', () => closeMenu(false));
+window.addEventListener('resize', () => closeMenu(false));
+document.addEventListener('scroll', () => closeMenu(false), true);
+$('#menu').addEventListener('keydown', e => {
+  const bs = $$('#menu button'), i = bs.indexOf(document.activeElement);
+  if (e.key === 'Escape') { e.preventDefault(); closeMenu(); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); bs[(i + 1) % bs.length].focus(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); bs[(i - 1 + bs.length) % bs.length].focus(); }
+  else if (e.key === 'Tab') closeMenu(false);
+});
+
+// New download link: point a download at the sender's new link.
+let relinkId = null;
+function openRelink(t) {
+  relinkId = t.id;
+  $('#relink-name').textContent = t.name;
+  $('#relink-url').value = '';
+  $('#relink').hidden = false;
+  $('#relink-url').focus();
+}
+const closeRelink = () => { $('#relink').hidden = true; relinkId = null; };
+$('#relink-cancel').onclick = closeRelink;
+$('#relink').addEventListener('mousedown', e => { if (e.target.id === 'relink') closeRelink(); });
+$('#relink').addEventListener('keydown', e => { if (e.key === 'Escape') closeRelink(); });
+$('#relink-form').onsubmit = e => {
+  e.preventDefault();
+  const url = $('#relink-url').value.trim();
+  if (!url) { toast('Paste the new link first', true); return; }
+  busyBtn($('#relink-go'), async () => {
+    await rpc('recvRelink', {id: relinkId, url});
+    closeRelink();
+    toast('Continuing with the new link');
+    await refresh();
+  });
+};
+async function relocateRecv(t) {
+  try {
+    const p = await rpc('pickFolder', {name: "Choose the folder with this download's files"});
+    if (!p) return;
+    const dir = await rpc('recvRelocate', {id: t.id, path: p});
+    toast('Checking the files in ' + dir + ' and continuing');
+    await refresh();
+  } catch (e) { toast(e.message, true); }
+}
 $('#rc-idm').onclick = e => busyBtn(e.currentTarget, async () => {
   const n = await rpc('recvIDM', {code: RC.token, fileIds: rcIds()});
   toast(`Sent ${n} file${n === 1 ? '' : 's'} to IDM`);
@@ -527,26 +610,34 @@ function renderReceives(list) {
           <span class="row gap wrap">
             <button class="btn small chat-btn" data-act="chat" title="Chat with the sender"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat<span class="badge"></span></button>
             <button class="btn small" data-act="toggle"></button>
-            <button class="btn small" data-act="dir">Open folder</button>
-            <button class="btn small danger" data-act="del"></button>
+            <button class="btn icon more" data-act="more" title="More" aria-label="More actions" aria-haspopup="menu" aria-expanded="false">⋮</button>
           </span>
         </div>
+        <div class="dir" data-f="dir"></div>
         <div class="warn" data-f="err" hidden></div>`;
       $('[data-act=toggle]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc(c._state === 'downloading' ? 'recvPause' : 'recvResume', {id: t.id}); await refresh(); });
-      $('[data-act=dir]', c).onclick = () => rpc('recvOpenDir', {id: t.id});
-      $('[data-act=chat]', c).onclick = () => openRecvChat(c._t.token, c._t.name);
-      $('[data-act=del]', c).onclick = e => {
+      $('[data-act=more]', c).onclick = e => {
         const done = c._state === 'done';
-        if (!done && !confirm('Cancel this download and delete the unfinished parts?')) return;
-        busyBtn(e.currentTarget, async () => { await rpc('recvRemove', {id: t.id, on: !done}); await refresh(); });
+        openMenu(e.currentTarget, [
+          {label: 'Open folder', run: () => rpc('recvOpenDir', {id: t.id})},
+          {label: 'Set location…', run: () => relocateRecv(c._t)},
+          {label: 'New download link…', run: () => openRelink(c._t)},
+          '-',
+          {label: done ? 'Remove from list' : 'Cancel download', danger: true, run: async () => {
+            if (!done && !confirm('Cancel this download and delete the unfinished parts?')) return;
+            try { await rpc('recvRemove', {id: t.id, on: !done}); await refresh(); } catch (err) { toast(err.message, true); }
+          }},
+        ]);
       };
+      $('[data-act=chat]', c).onclick = () => openRecvChat(c._t.token, c._t.name);
       box.insertBefore(c, box.children[idx] || null);
     }
     c._state = t.state; c._t = t;
     setBadge($('[data-act=chat]', c), 'recv:' + t.token, recvSeq[t.token]);
     const f = k => $(`[data-f="${k}"]`, c);
     $('h3', c).textContent = t.name;
-    const st = {downloading: ['Downloading', 'ok'], paused: ['Paused', ''], done: ['Done ✓', 'ok'], error: ['Stopped', 'bad']}[t.state] || [t.state, ''];
+    const checking = t.state === 'downloading' && t.chkN > 0;
+    const st = checking ? ['Checking files', ''] : {downloading: ['Downloading', 'ok'], paused: ['Paused', ''], done: ['Done ✓', 'ok'], error: ['Stopped', 'bad']}[t.state] || [t.state, ''];
     f('state').textContent = st[0]; f('state').className = 'pill ' + st[1];
     $('.bar i', c).style.transform = 'scaleX(' + (t.total ? Math.min(1, t.got / t.total) : 1).toFixed(4) + ')';
     f('got').textContent = fmtBytes(t.got); f('total').textContent = fmtBytes(t.total);
@@ -554,10 +645,10 @@ function renderReceives(list) {
     f('by').hidden = !t.by; $('b', f('by')).textContent = t.by || '';
     f('speed').textContent = fmtSpeed(t.state === 'downloading' ? t.speed : 0);
     const left = t.total - t.got;
-    f('eta').textContent = t.state === 'downloading' && t.speed > 1024 && left > 0 ? 'About ' + fmtETA(left / t.speed) + ' left' : '';
+    f('eta').textContent = checking ? `Checked ${t.chkOK} of ${t.chkN}` : t.state === 'downloading' && t.speed > 1024 && left > 0 ? 'About ' + fmtETA(left / t.speed) + ' left' : '';
+    f('dir').textContent = 'Saving to ' + t.dir; f('dir').title = t.dir;
     $('[data-act=toggle]', c).hidden = t.state === 'done';
     $('[data-act=toggle]', c).textContent = t.state === 'downloading' ? 'Pause' : 'Resume';
-    $('[data-act=del]', c).textContent = t.state === 'done' ? 'Remove from list' : 'Cancel';
     f('err').hidden = !t.err; f('err').textContent = t.err || '';
   });
 }
@@ -573,7 +664,7 @@ $('#rc-go').onclick = e => busyBtn(e.currentTarget, async () => {
   if (!v) { toast('Paste a link or a code first', true); return; }
   if (/^https?:\/\//i.test(v)) {
     const r = await rpc('recvOpen', {url: v});
-    RC = r.manifest;
+    RC = r.manifest; rcDir = null;
     rcSel.clear(); RC.files.forEach(f => rcSel.add(f.id));
     $('#rc-filter').value = '';
     $('#rc-idm').hidden = !r.idm;

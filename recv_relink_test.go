@@ -23,7 +23,7 @@ func TestRelinkMergesDuplicate(t *testing.T) {
 	defer func() { recvTasks = nil }()
 
 	m := &recvManifest{Token: "tok2", Base: "http://y:2", Name: "Game", By: "Rafi", Files: files(5, 6)}
-	revive, drop, orphans := relinkRecvLocked(m)
+	revive, drop, orphans := relinkRecvLocked(m, nil)
 
 	if old.Token != "tok2" || old.Base != "http://y:2" || old.By != "Rafi" {
 		t.Fatalf("old download not moved to the new link: %+v", old)
@@ -46,7 +46,7 @@ func TestRelinkMergesDuplicate(t *testing.T) {
 	}
 
 	// Opening the same link again changes nothing.
-	if r, d, o := relinkRecvLocked(m); r != nil || d != nil || o != nil {
+	if r, d, o := relinkRecvLocked(m, nil); r != nil || d != nil || o != nil {
 		t.Fatalf("second open should be a no-op: %v %v %v", r, d, o)
 	}
 }
@@ -58,7 +58,7 @@ func TestRelinkIgnoresChangedFiles(t *testing.T) {
 	recvTasks = []*RecvTask{old}
 	defer func() { recvTasks = nil }()
 	m := &recvManifest{Token: "tok2", Name: "Game", Files: []RecvFile{{ID: 0, Rel: "Game/a.bin", Size: 11}}}
-	if r, d, _ := relinkRecvLocked(m); r != nil || d != nil || old.Token != "tok1" {
+	if r, d, _ := relinkRecvLocked(m, nil); r != nil || d != nil || old.Token != "tok1" {
 		t.Fatal("a changed file must not be resumed")
 	}
 }

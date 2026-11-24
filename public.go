@@ -108,6 +108,7 @@ func secHeaders(h http.Handler) http.Handler {
 
 type strike struct {
 	n     int
+	seen  map[string]bool // wrong links already counted
 	first time.Time
 	until time.Time
 }
@@ -147,7 +148,10 @@ func isBanned(r *http.Request) bool {
 	return s != nil && time.Now().Before(s.until)
 }
 
-func addStrike(r *http.Request) {
+// addStrike counts a request for something that doesn't exist. Each wrong
+// link counts once: a download that keeps asking for a link that ended (the
+// sharer restarted) is not someone guessing links, and must not get blocked.
+func addStrike(r *http.Request, key string) {
 	ip, ok := clientIP(r)
 	if !ok {
 		return
@@ -164,8 +168,14 @@ func addStrike(r *http.Request) {
 	}
 	s := strikes[ip]
 	if s == nil || now.Sub(s.first) > strikeWindow {
-		s = &strike{first: now}
+		s = &strike{first: now, seen: map[string]bool{}}
 		strikes[ip] = s
+	}
+	if s.seen[key] {
+		return
+	}
+	if len(s.seen) <= strikeLimit {
+		s.seen[key] = true
 	}
 	s.n++
 	if s.n >= strikeLimit {
@@ -194,7 +204,7 @@ func handleAssets(w http.ResponseWriter, r *http.Request) {
 func handleLanding(w http.ResponseWriter, r *http.Request) {
 	// Nothing lives at the bare address: a port scanner learns nothing.
 	if r.URL.Path != "/" && r.URL.Path != "/favicon.ico" {
-		addStrike(r)
+		addStrike(r, r.URL.Path)
 	}
 	http.NotFound(w, r)
 }
@@ -210,7 +220,7 @@ func handleShare(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/s/"), "/")
 	s := getShare(parts[0])
 	if s == nil {
-		addStrike(r)
+		addStrike(r, "s/"+parts[0])
 		b, _ := webFS.ReadFile("web/gone.html")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusNotFound)

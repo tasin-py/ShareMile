@@ -240,6 +240,20 @@ small{color:var(--muted);display:block;margin-top:6px;font-size:12px}
 .rc-file .sz{color:var(--muted);font-variant-numeric:tabular-nums}
 .rc-files>.muted{padding:8px 12px;font-size:12px}
 .rc-card .bar{margin:14px 0 10px}
+.rc-save{display:flex;align-items:center;gap:10px;min-width:0;margin:0 0 14px;font-size:13px}
+.rc-path{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-card .dir{color:var(--muted);font-size:12px;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn.icon.more{width:32px;height:32px;font-size:18px;line-height:1;letter-spacing:0}
+.menu{position:fixed;z-index:70;min-width:210px;padding:6px;border-radius:var(--r);background:var(--card);border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--hi),var(--shadow-lg);animation:fade var(--dur-short) var(--ease)}
+.menu button{display:block;width:100%;height:34px;padding:0 12px;border:0;border-radius:var(--r-xs);background:none;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;transition:background-color var(--dur-micro) var(--ease)}
+.menu button:hover,.menu button:focus-visible{background:var(--card2);outline:none}
+.menu button:focus-visible{box-shadow:inset 0 0 0 2px var(--acc)}
+.menu button:active{background:color-mix(in srgb,var(--card2) 70%,var(--line))}
+.menu button.danger{color:var(--danger)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:6px 4px}
+.modal-in{width:min(520px,92vw);text-align:left}
+.modal-in .pathin input{text-align:left}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px}
 .rc-card .warn{margin-top:10px}
 .rc-head{display:flex;align-items:baseline;gap:10px;min-width:0;flex-wrap:wrap}
 .tnum{font-variant-numeric:tabular-nums;white-space:nowrap}

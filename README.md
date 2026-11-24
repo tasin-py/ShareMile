@@ -112,7 +112,7 @@ flowchart LR
 - **Hosts stay in control**: add or remove folders and single files, rename the network, and choose how members connect (Automatic, Relay, BDIX Transfer, Same Wi-Fi, IPv6). Members see changes within about 30 seconds.
 - **Sort file lists** by name, size or date modified.
 - **Chat**: talk to the people downloading your Quick Share (from the app or right in their browser, phones included), or use a **group chat** inside a Share Network. **@mentions** with name suggestions, **reply** to a specific message, and **reactions** (👍 ❤️ 😂 😮 😢 🙏 🔥 🎉). Messages stay on the sharer's / host's PC; nothing goes through an outside server. When someone **@mentions you**, a soft chime plays (unless you're already looking at that chat); ordinary messages stay silent.
-- **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart. If the sender restarts and shares the same files again under a new link, opening that link continues the old download; files you already have are never fetched twice.
+- **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart. A **⋮** menu on each download has **Set location…** (point it at files you already have and it continues) and **New download link…** (paste the sender's new link after they restart). If the sender restarts and shares the same files again under a new link, opening that link continues the old download; files you already have are never fetched twice.
 - **Download with IDM** (shown when IDM is installed; opens IDM's normal download window for each file) or **Browser download**, if you prefer.
 - **New link / New code**: retire a link or a network code in one click. Anyone holding the old one loses access.
 - **Bookmarks**: save your favourite network codes; they stay in the app and connect in one click.
@@ -163,11 +163,22 @@ People without the app just open the link in a browser. With the app it's faster
 
 1. Open **Receive** and paste the link (or a `SM-…` code, which joins that Share Network). The **Paste** button fills it in from the clipboard.
 2. ShareMile lists every file with its size. Tick what you want (or use the filter).
-3. Press **Download**. Files land in your download folder (*Settings → Downloads*) with their folders intact.
+3. Press **Download**. Files land in your download folder (*Settings → Downloads*) with their folders intact. **Save to → Change** picks another folder for this download. If an earlier download of these files is in that folder, ShareMile checks them and only downloads what's missing.
    Or press **Download with IDM** (IDM opens its usual download window for each file, so you can start or cancel it there), or **Browser download**.
 4. **Chat with sender** opens a chat with the person sharing. The **✕** closes the file list.
 
-Downloads use 8 connections at once and survive anything: pause and resume, a dropped connection, closing the app, even a crash. If the sender's link changes (their app or PC restarted and they shared the files again), paste their new link on **Receive** and the old download continues where it stopped. Files already finished are kept, not downloaded again.
+Each download in the list has **Pause / Resume** and a **⋮** menu:
+
+| ⋮ menu | What it does |
+|---|---|
+| **Open folder** | Opens the folder the files are saved in. |
+| **Set location…** | Points the download at another folder, like a torrent client's *Set location*. Pick the folder where its files already are (or the folder that holds it): ShareMile checks what's there and continues from where it left off. |
+| **New download link…** | The sender restarted and sent a new link? Paste it here and the download continues where it stopped. |
+| **Cancel download** / **Remove from list** | Cancel deletes the unfinished parts; on a finished download it only clears it from the list. |
+
+Downloads use 8 connections at once and survive anything: pause and resume, a dropped connection, closing the app, even a crash. If the sender's link changes (their app or PC restarted and they shared the files again), use **New download link…**, or just open the new link on **Receive**: the old download continues where it stopped. Files already finished are kept, never downloaded twice.
+
+**How the file check works.** Before downloading, ShareMile looks at files already in the folder. A file with the sender's exact size and date is finished (ShareMile keeps the sender's dates). A file with the right size but another date, for example one copied by hand, is compared with the sender's copy at three spots, so even a 50 GB file is checked in a moment. A file that doesn't match is downloaded again and replaces it; partial `.smpart` files simply continue.
 
 <p align="center">
   <img src="docs/screenshots/app-receive.png" alt="Receive: pick files, then Download, Download with IDM or Browser download" width="80%">
@@ -263,15 +274,25 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.6.2
+.\build.ps1 -Version 1.6.3
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.2\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.3\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.6.3 (2026-11-24)
+- New: a ⋮ menu on each download in Receive, holding Open folder, Set location…, New download link… and Cancel download (fewer buttons on the card).
+- New: Set location… points a download at another folder, like a torrent client. Pick the folder with its files (or the one that holds it) and ShareMile checks what's there and continues.
+- New: New download link… continues a download from the sender's new link after they restart.
+- New: Save to → Change on the file list picks the folder for one download. Files already there are checked and only the missing ones are downloaded.
+- New: fast file check. Files with the sender's size and date count as finished; same size but another date is compared with the sender at three spots; anything else is downloaded again and replaces the file. No more "name (2)" copies.
+- New: each download shows the folder it saves to, and "Checking files" while it checks.
+- Fix: a download that kept asking for a link that had ended could get the receiver's PC blocked by the sender for an hour ("temporarily blocking this connection"). The block now counts each wrong link once, so only real link-guessing gets blocked. The sender needs this version for the fix.
+- Fix: clearer messages when a link has ended (with what to do next) and when the sender's PC is blocking you.
+
 v1.6.2 (2026-11-24)
 - Fix: when the sender restarts and shares the same files again, their new link now continues your unfinished download instead of starting a second one that downloaded every finished file again as "name (2)" copies.
 - Fix: a duplicate download already made by an older version is folded into the original when you open the new link (its leftover partial files are removed), and files already saved with the sender's size and date are recognised instead of downloaded again.
