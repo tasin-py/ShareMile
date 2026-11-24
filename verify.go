@@ -10,9 +10,11 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 // Check files: compares a download's folder with the sender's current file
@@ -23,14 +25,17 @@ import (
 type verifyItem struct {
 	Rel  string `json:"rel"`
 	Size int64  `json:"size"`
-	Why  string `json:"why,omitempty"` // missing|partial|changed
+	Why  string `json:"why,omitempty"`  // missing|partial|changed
+	Copy string `json:"copy,omitempty"` // a good copy of this file is already in the folder under this name
 }
 
 type verifyState struct {
 	token   string
 	missing []RecvFile
-	extra   []string // full paths
-	scan    string   // folder searched for extra files
+	extra   []string       // full paths
+	scan    string         // folder searched for extra files
+	copies  map[int]string // file id -> a good copy already in the folder, e.g. "name (2).ext"
+	tooBig  []string       // extra files the Recycle Bin can't take (last Remove extra)
 }
 
 var (
@@ -197,8 +202,55 @@ func recvVerify(id string) (map[string]any, error) {
 		sort.Strings(extra)
 	}
 
+	// A missing or changed file may have a good copy right next to it, like
+	// "name (2).ext" left by an earlier download or another app. That copy is
+	// used for the file instead of being called extra (and removed).
+	copies := map[int]string{}
+	for _, f := range missing {
+		final := filepath.Join(dir, cleanRel(f.Rel))
+		ext := filepath.Ext(final)
+		stem := strings.TrimSuffix(final, ext)
+		for n := 2; n <= 9; n++ {
+			c := fmt.Sprintf("%s (%d)%s", stem, n, ext)
+			st, err := os.Stat(c)
+			if err != nil || st.IsDir() || st.Size() != f.Size {
+				continue
+			}
+			good := f.MTime > 0 && abs64(st.ModTime().UnixMilli()-f.MTime) < 2000
+			if !good {
+				same, err := sameAsSender(context.Background(), base, token, f, c)
+				if err != nil {
+					return nil, err
+				}
+				good = same
+			}
+			if good {
+				copies[f.ID] = c
+				break
+			}
+		}
+	}
+	if len(copies) > 0 {
+		used := map[string]bool{}
+		for _, c := range copies {
+			used[strings.ToLower(c)] = true
+		}
+		kept := extra[:0]
+		extraBytes = 0
+		for _, p := range extra {
+			if used[strings.ToLower(p)] {
+				continue
+			}
+			kept = append(kept, p)
+			if st, err := os.Stat(p); err == nil {
+				extraBytes += st.Size()
+			}
+		}
+		extra = kept
+	}
+
 	verifyMu.Lock()
-	verifies[id] = &verifyState{token: token, missing: missing, extra: extra, scan: scan}
+	verifies[id] = &verifyState{token: token, missing: missing, extra: extra, scan: scan, copies: copies}
 	verifyMu.Unlock()
 
 	var missBytes int64
@@ -206,7 +258,11 @@ func recvVerify(id string) (map[string]any, error) {
 	for _, f := range missing {
 		missBytes += f.Size
 		if len(mi) < verifyListMax {
-			mi = append(mi, verifyItem{Rel: f.Rel, Size: f.Size, Why: why[f.ID]})
+			it := verifyItem{Rel: f.Rel, Size: f.Size, Why: why[f.ID]}
+			if c, ok := copies[f.ID]; ok {
+				it.Copy = filepath.Base(c)
+			}
+			mi = append(mi, it)
 		}
 	}
 	ex := []verifyItem{}
@@ -223,7 +279,7 @@ func recvVerify(id string) (map[string]any, error) {
 	}
 	return map[string]any{
 		"dir": dir, "files": len(m.Files), "ok": ok, "okBytes": okBytes,
-		"missing": mi, "missingCount": len(missing), "missingBytes": missBytes,
+		"missing": mi, "missingCount": len(missing), "missingBytes": missBytes, "copyCount": len(copies),
 		"extra": ex, "extraCount": len(extra), "extraBytes": extraBytes, "extraScanned": scan != "",
 	}, nil
 }
@@ -238,25 +294,26 @@ func lastVerify(id string) (*verifyState, error) {
 	return v, nil
 }
 
-// recvGetMissing adds the missing and changed files from the last check to
-// the download and starts it. Files that are there and match stay untouched.
-func recvGetMissing(id string) (int, error) {
+// recvGetMissing fixes the missing and changed files from the last check:
+// a good copy already in the folder is renamed into place, the rest are added
+// to the download, which starts. Files that are there and match stay untouched.
+func recvGetMissing(id string) (map[string]int, error) {
 	t := findRecv(id)
 	if t == nil {
-		return 0, errors.New("that download is gone")
+		return nil, errors.New("that download is gone")
 	}
 	v, err := lastVerify(id)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	t.mu.Lock()
 	sameLink, dir := t.Token == v.token, t.Dir
 	t.mu.Unlock()
 	if !sameLink {
-		return 0, errors.New("the link changed since the check. Check the files again")
+		return nil, errors.New("the link changed since the check. Check the files again")
 	}
 	if len(v.missing) == 0 {
-		return 0, nil
+		return map[string]int{"used": 0, "download": 0}, nil
 	}
 	rels := map[string]bool{}
 	for _, f := range v.missing {
@@ -276,13 +333,36 @@ func recvGetMissing(id string) (int, error) {
 		for _, f := range o.Files {
 			if rels[f.Rel] && !o.isDone(f.ID) {
 				recvMu.Unlock()
-				return 0, errors.New("another download in your list is saving some of these files. Use that one, or cancel it first")
+				return nil, errors.New("another download in your list is saving some of these files. Use that one, or cancel it first")
 			}
 		}
 	}
 	recvMu.Unlock()
 
 	t.pause()
+	used := 0
+	for _, f := range v.missing {
+		c, ok := v.copies[f.ID]
+		if !ok || !fileExists(c) {
+			continue
+		}
+		final := filepath.Join(dir, cleanRel(f.Rel))
+		os.Remove(final + ".smpart")
+		os.Remove(final + ".smpart.json")
+		if fileExists(final) {
+			if err := os.Remove(final); err != nil { // the wrong file in the way
+				return nil, fmt.Errorf("couldn't replace %s: %v", filepath.Base(final), err)
+			}
+		}
+		if err := os.Rename(c, final); err != nil {
+			return nil, fmt.Errorf("couldn't use %s: %v", filepath.Base(c), err)
+		}
+		if f.MTime > 0 {
+			mt := time.UnixMilli(f.MTime)
+			os.Chtimes(final, mt, mt)
+		}
+		used++
+	}
 	t.mu.Lock()
 	byID := map[int]RecvFile{}
 	for _, f := range v.missing {
@@ -318,8 +398,8 @@ func recvGetMissing(id string) (int, error) {
 	verifyMu.Lock()
 	delete(verifies, id)
 	verifyMu.Unlock()
-	t.start()
-	return len(v.missing), nil
+	t.start() // the check before downloading counts the copies used as finished
+	return map[string]int{"used": used, "download": len(v.missing) - used}, nil
 }
 
 func rels2id(files []RecvFile) map[int]bool {
@@ -331,19 +411,45 @@ func rels2id(files []RecvFile) map[int]bool {
 }
 
 // recvRemoveExtra moves the extra files from the last check to the Recycle
-// Bin and clears out folders that are left empty.
-func recvRemoveExtra(id string) (int, error) {
+// Bin and clears out folders that are left empty. Files the Recycle Bin can't
+// take (too big, or no Recycle Bin on that drive) are left alone and reported;
+// they are only deleted for good when asked again with permanent set.
+func recvRemoveExtra(id string, permanent bool) (map[string]any, error) {
 	v, err := lastVerify(id)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	var paths []string
-	for _, p := range v.extra {
-		if fileExists(p) {
-			paths = append(paths, p)
+	var paths, tooBig []string
+	var tooBigBytes int64
+	gone := 0
+	if permanent {
+		for _, p := range v.tooBig {
+			if fileExists(p) {
+				if os.Remove(p) == nil {
+					gone++
+				} else {
+					err = fmt.Errorf("%s couldn't be deleted. It may be open in another app", filepath.Base(p))
+				}
+			}
 		}
+		paths = v.tooBig
+	} else {
+		var ok []string
+		for _, p := range v.extra {
+			st, e := os.Stat(p)
+			if e != nil || st.IsDir() {
+				continue
+			}
+			if canRecycle(p, st.Size()) {
+				ok = append(ok, p)
+			} else {
+				tooBig = append(tooBig, p)
+				tooBigBytes += st.Size()
+			}
+		}
+		gone, err = recycle(ok)
+		paths = ok
 	}
-	gone, err := recycle(paths)
 	dirs := map[string]bool{}
 	for _, p := range paths {
 		for d := filepath.Dir(p); len(d) > len(v.scan) && strings.HasPrefix(strings.ToLower(d), strings.ToLower(v.scan)); d = filepath.Dir(d) {
@@ -361,9 +467,58 @@ func recvRemoveExtra(id string) (int, error) {
 	verifyMu.Lock()
 	if cur := verifies[id]; cur == v {
 		cur.extra = nil
+		cur.tooBig = tooBig
 	}
 	verifyMu.Unlock()
-	return gone, err
+	return map[string]any{"removed": gone, "tooBig": len(tooBig), "tooBigBytes": tooBigBytes}, err
+}
+
+// canRecycle tells whether Windows would put a file in the Recycle Bin rather
+// than delete it for good: the drive needs a Recycle Bin that is switched on
+// and big enough for the file.
+func canRecycle(path string, size int64) bool {
+	vol := filepath.VolumeName(path)
+	if len(vol) != 2 || vol[1] != ':' {
+		return false // network path: no Recycle Bin
+	}
+	root, _ := windows.UTF16PtrFromString(vol + `\`)
+	if t := windows.GetDriveType(root); t != windows.DRIVE_FIXED {
+		return false
+	}
+	buf := make([]uint16, 64)
+	if err := windows.GetVolumeNameForVolumeMountPoint(root, &buf[0], uint32(len(buf))); err != nil {
+		return false
+	}
+	guid := windows.UTF16ToString(buf) // \\?\Volume{...}\
+	if i, j := strings.Index(guid, "{"), strings.Index(guid, "}"); i >= 0 && j > i {
+		guid = guid[i : j+1]
+	} else {
+		return false
+	}
+	maxMB := int64(-1)
+	if k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Explorer\BitBucket\Volume\`+guid, registry.QUERY_VALUE); err == nil {
+		if n, _, err := k.GetIntegerValue("NukeOnDelete"); err == nil && n != 0 {
+			k.Close()
+			return false
+		}
+		if n, _, err := k.GetIntegerValue("MaxCapacity"); err == nil {
+			maxMB = int64(n)
+		}
+		k.Close()
+	}
+	if maxMB < 0 { // Windows' default: 10% of the first 40 GB and 5% of the rest
+		var total uint64
+		if windows.GetDiskFreeSpaceEx(root, nil, &total, nil) != nil {
+			return false
+		}
+		t := int64(total) >> 20
+		if t <= 40<<10 {
+			maxMB = t / 10
+		} else {
+			maxMB = 4<<10 + (t-40<<10)/20
+		}
+	}
+	return size <= maxMB<<20
 }
 
 var procSHFileOperation = windows.NewLazySystemDLL("shell32.dll").NewProc("SHFileOperationW")
@@ -390,7 +545,9 @@ func shDelete(paths []string) bool {
 	}
 	buf = append(buf, 0)
 	op := shFileOpStruct{wFunc: 3 /* FO_DELETE */, pFrom: &buf[0],
-		fFlags: 0x40 | 0x10 | 0x04 | 0x400 /* ALLOWUNDO|NOCONFIRMATION|SILENT|NOERRORUI */}
+		// ALLOWUNDO|NOCONFIRMATION|SILENT|NOERRORUI|WANTNUKEWARNING: if Windows
+		// would still delete something for good, it asks first.
+		fFlags: 0x40 | 0x10 | 0x04 | 0x400 | 0x4000}
 	r, _, _ := procSHFileOperation.Call(uintptr(unsafe.Pointer(&op)))
 	return r == 0 && op.aborted == 0
 }

@@ -617,10 +617,10 @@ function showVerify() {
   const miss = r.missingCount, extra = r.extraCount;
   $('#verify-sum').innerHTML = `
     <div class="vs ok"><b>${r.ok.toLocaleString()}</b><span>of ${plural(r.files, 'file', 'files')} match (${fmtBytes(r.okBytes)})</span></div>
-    <div class="vs ${miss ? 'miss' : ''}"><b>${miss.toLocaleString()}</b><span>missing or changed${miss ? ' (' + fmtBytes(r.missingBytes) + ')' : ''}</span></div>
+    <div class="vs ${miss ? 'miss' : ''}"><b>${miss.toLocaleString()}</b><span>missing or changed${miss ? ' (' + fmtBytes(r.missingBytes) + ')' : ''}${r.copyCount ? `, ${r.copyCount.toLocaleString()} already here as a copy` : ''}</span></div>
     <div class="vs ${extra ? 'extra' : ''}"><b>${r.extraScanned ? extra.toLocaleString() : '–'}</b><span>${r.extraScanned ? 'extra' + (extra ? ' (' + fmtBytes(r.extraBytes) + ')' : '') : 'extra: not checked for single files'}</span></div>`;
   const why = {missing: 'missing', partial: 'part downloaded', changed: 'different from the sender'};
-  const row = x => `<div class="vr"><span class="nm" title="${esc(x.rel)}">${esc(x.rel)}</span>${x.why ? `<span class="why">${why[x.why] || ''}</span>` : ''}<span class="tnum">${fmtBytes(x.size)}</span></div>`;
+  const row = x => `<div class="vr"><span class="nm" title="${esc(x.rel)}">${esc(x.rel)}</span>${x.copy ? `<span class="why">good copy here: ${esc(x.copy)}</span>` : x.why ? `<span class="why">${why[x.why] || ''}</span>` : ''}<span class="tnum">${fmtBytes(x.size)}</span></div>`;
   const more = (shown, all) => all > shown ? `<div class="more">and ${(all - shown).toLocaleString()} more</div>` : '';
   let h = '';
   if (miss) h += `<h3>Missing or changed</h3>${r.missing.map(row).join('')}${more(r.missing.length, miss)}`;
@@ -629,7 +629,7 @@ function showVerify() {
   $('#verify-list').hidden = !h;
   if (!h) $('#verify-sum').insertAdjacentHTML('beforeend', '<div class="vs wait">Everything matches the sender.</div>');
   $('#verify-missing').hidden = !miss;
-  $('#verify-missing').textContent = 'Download missing (' + miss.toLocaleString() + ')';
+  $('#verify-missing').textContent = (r.copyCount === miss ? 'Fix missing (' : 'Download missing (') + miss.toLocaleString() + ')';
   $('#verify-extra').hidden = !extra;
   $('#verify-extra').textContent = 'Remove extra (' + extra.toLocaleString() + ')';
 }
@@ -640,7 +640,10 @@ $('#verify').addEventListener('keydown', e => { if (e.key === 'Escape') closeVer
 $('#verify-missing').onclick = e => busyBtn(e.currentTarget, async () => {
   const n = await rpc('recvGetMissing', {id: verifyId});
   closeVerify();
-  toast('Downloading ' + plural(n, 'missing file', 'missing files'));
+  const parts = [];
+  if (n.used) parts.push('Used ' + plural(n.used, 'copy', 'copies') + ' already in the folder');
+  if (n.download) parts.push((n.used ? 'downloading ' : 'Downloading ') + plural(n.download, 'missing file', 'missing files'));
+  toast(parts.join(', ') || 'Nothing to fix');
   await refresh();
 });
 $('#verify-extra').onclick = e => {
@@ -649,7 +652,13 @@ $('#verify-extra').onclick = e => {
   busyBtn(e.currentTarget, async () => {
     try {
       const n = await rpc('recvRemoveExtra', {id: verifyId});
-      toast('Moved ' + plural(n, 'file', 'files') + ' to the Recycle Bin');
+      if (n.removed) toast('Moved ' + plural(n.removed, 'file', 'files') + ' to the Recycle Bin');
+      if (n.tooBig && confirm(`${plural(n.tooBig, 'extra file is', 'extra files are')} too big for the Recycle Bin (${fmtBytes(n.tooBigBytes)}). Delete ${n.tooBig === 1 ? 'it' : 'them'} permanently? This can't be undone.`)) {
+        const d = await rpc('recvRemoveExtra', {id: verifyId, on: true});
+        toast('Deleted ' + plural(d.removed, 'file', 'files') + ' permanently');
+      } else if (n.tooBig) {
+        toast(plural(n.tooBig, 'file was', 'files were') + ' left in place');
+      }
     } finally { if (verifyId) runVerify(); }
   });
 };

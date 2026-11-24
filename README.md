@@ -173,7 +173,7 @@ Each download in the list has **Pause / Resume** and a **⋮** menu:
 |---|---|
 | **Open folder** | Opens the folder the files are saved in. |
 | **Set location…** | Points the download at another folder, like a torrent client's *Set location*. Pick the folder where its files already are (or the folder that holds it): ShareMile checks what's there and continues from where it left off. |
-| **Check files…** | Compares the folder with the sender's files and shows what matches, what's **missing or changed** and what's **extra** (in the folder but not in the share). **Download missing** gets just those files; **Remove extra** moves the extras to the Recycle Bin. |
+| **Check files…** | Compares the folder with the sender's files and shows what matches, what's **missing or changed** and what's **extra** (in the folder but not in the share). **Download missing** gets just those files, using a good copy already in the folder (like `name (2).ext`) instead of downloading it again. **Remove extra** moves the extras to the Recycle Bin, and asks before deleting anything too big for it. |
 | **New download link…** | The sender restarted and sent a new link? Paste it here and the download continues where it stopped. |
 | **Cancel download** / **Remove from list** | Cancel deletes the unfinished parts; on a finished download it only clears it from the list. |
 
@@ -275,15 +275,19 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.6.4
+.\build.ps1 -Version 1.6.5
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.4\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.5\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.6.5 (2026-11-24)
+- Fix: Check files no longer calls a good copy of a missing file "extra". A file like `name (2).ext` left by an earlier download or another app is compared with the sender, and if it matches, Download missing (or Fix missing) puts it in place instead of downloading the file again. Bad copies are still listed as extra.
+- Fix: Remove extra never deletes anything for good without asking. Files too big for the Recycle Bin (or on a drive without one) are left in place, and you're asked separately before they're deleted permanently.
+
 v1.6.4 (2026-11-24)
 - New: Check files… in each download's ⋮ menu compares your folder with the sender's files: what matches, what's missing or changed, and what's extra. It uses the fast size, date and three-spot check, so big folders are checked in moments.
 - New: Download missing gets only the missing and changed files (also files you didn't tick at first), and Remove extra moves files the sender doesn't have to the Recycle Bin and clears empty folders.
