@@ -251,9 +251,28 @@ small{color:var(--muted);display:block;margin-top:6px;font-size:12px}
 .menu button:active{background:color-mix(in srgb,var(--card2) 70%,var(--line))}
 .menu button.danger{color:var(--danger)}
 .menu hr{border:0;border-top:1px solid var(--line);margin:6px 4px}
-.modal-in{width:min(520px,92vw);text-align:left}
+.welcome-in.modal-in{width:min(520px,92vw);text-align:left}
 .modal-in .pathin input{text-align:left}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px}
+.welcome-in.verify-in{width:min(600px,94vw);max-height:min(640px,90vh)}
+.verify-in .modal-actions{flex-wrap:wrap;align-items:center}
+.vspace{flex:1}
+#verify-sub{overflow-wrap:anywhere}
+#verify-sub b{color:var(--text);font-weight:600}
+.verify-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.verify-sum .vs{padding:12px 14px;border-radius:var(--r);border:1px solid var(--line);background:var(--card2);min-width:0}
+.verify-sum .vs b{display:block;font:600 20px/1.2 var(--font-display);font-variant-numeric:tabular-nums}
+.verify-sum .vs span{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.verify-sum .vs.ok b{color:var(--acc)}
+.verify-sum .vs.miss b{color:var(--warn)}
+.verify-sum .vs.extra b{color:var(--danger)}
+.verify-sum .vs.wait{grid-column:1/-1;color:var(--muted);font-size:14px}
+.verify-list{overflow:auto;min-height:60px;max-height:280px;border:1px solid var(--line);border-radius:var(--r);background:var(--card2);padding:6px 0}
+.verify-list h3{margin:6px 14px 4px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.verify-list .vr{display:flex;gap:10px;padding:4px 14px;font-size:13px;min-width:0}
+.verify-list .vr .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.verify-list .vr .why{color:var(--muted);font-size:12px}
+.verify-list .more{padding:4px 14px;font-size:12.5px;color:var(--muted)}
 .rc-card .warn{margin-top:10px}
 .rc-head{display:flex;align-items:baseline;gap:10px;min-width:0;flex-wrap:wrap}
 .tnum{font-variant-numeric:tabular-nums;white-space:nowrap}

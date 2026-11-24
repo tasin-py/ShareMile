@@ -259,6 +259,21 @@
     <div class="modal-actions"><button type="button" class="btn" id="relink-cancel">Cancel</button><button class="btn primary" id="relink-go">Continue download</button></div>
   </form>
 </div>
+<div class="welcome" id="verify" hidden>
+  <div class="welcome-in modal-in verify-in" role="dialog" aria-modal="true" aria-labelledby="verify-h" tabindex="-1">
+    <h2 id="verify-h">Check files</h2>
+    <p id="verify-sub"></p>
+    <div class="verify-sum" id="verify-sum"></div>
+    <div class="verify-list" id="verify-list" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="verify-again">Check again</button>
+      <span class="vspace"></span>
+      <button type="button" class="btn danger" id="verify-extra" hidden></button>
+      <button type="button" class="btn primary" id="verify-missing" hidden></button>
+      <button type="button" class="btn" id="verify-close">Close</button>
+    </div>
+  </div>
+</div>
 <div class="toasts" id="toasts"></div>
 <script src="chat.js"></script>
 <script src="app.js"></script>

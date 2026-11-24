@@ -574,6 +574,86 @@ $('#relink-form').onsubmit = e => {
     await refresh();
   });
 };
+// Check files: compare the folder with the sender's file list.
+let verifyId = null, verifyTimer = null, verifyRes = null;
+const plural = (n, one, many) => n.toLocaleString() + ' ' + (n === 1 ? one : many);
+function openVerify(t) {
+  verifyId = t.id; verifyRes = null;
+  $('#verify-sub').innerHTML = `Compares <b>${esc(t.name)}</b> with the sender's files. Folder: ${esc(t.dir)}`;
+  $('#verify').hidden = false;
+  $('.verify-in').focus();
+  runVerify();
+}
+function closeVerify() {
+  $('#verify').hidden = true; verifyId = null; verifyRes = null;
+  clearInterval(verifyTimer); verifyTimer = null;
+}
+async function runVerify() {
+  const id = verifyId;
+  verifyRes = null;
+  $('#verify-sum').innerHTML = '<div class="vs wait" id="verify-wait">Getting the sender\'s file list…</div>';
+  $('#verify-list').hidden = true;
+  $('#verify-missing').hidden = $('#verify-extra').hidden = true;
+  $('#verify-again').disabled = true;
+  clearInterval(verifyTimer);
+  verifyTimer = setInterval(() => {
+    const t = ((S && S.receives) || []).find(x => x.id === id), w = $('#verify-wait');
+    if (t && w && t.vN > 0) w.textContent = `Comparing files with the sender… ${t.vOK.toLocaleString()} of ${t.vN.toLocaleString()}`;
+  }, 500);
+  try {
+    const r = await rpc('recvVerify', {id});
+    if (verifyId !== id) return;
+    verifyRes = r; showVerify();
+  } catch (e) {
+    if (verifyId !== id) return;
+    $('#verify-sum').innerHTML = `<div class="vs wait">${esc(e.message)}</div>`;
+  } finally {
+    clearInterval(verifyTimer); verifyTimer = null;
+    $('#verify-again').disabled = false;
+  }
+}
+function showVerify() {
+  const r = verifyRes;
+  const miss = r.missingCount, extra = r.extraCount;
+  $('#verify-sum').innerHTML = `
+    <div class="vs ok"><b>${r.ok.toLocaleString()}</b><span>of ${plural(r.files, 'file', 'files')} match (${fmtBytes(r.okBytes)})</span></div>
+    <div class="vs ${miss ? 'miss' : ''}"><b>${miss.toLocaleString()}</b><span>missing or changed${miss ? ' (' + fmtBytes(r.missingBytes) + ')' : ''}</span></div>
+    <div class="vs ${extra ? 'extra' : ''}"><b>${r.extraScanned ? extra.toLocaleString() : '–'}</b><span>${r.extraScanned ? 'extra' + (extra ? ' (' + fmtBytes(r.extraBytes) + ')' : '') : 'extra: not checked for single files'}</span></div>`;
+  const why = {missing: 'missing', partial: 'part downloaded', changed: 'different from the sender'};
+  const row = x => `<div class="vr"><span class="nm" title="${esc(x.rel)}">${esc(x.rel)}</span>${x.why ? `<span class="why">${why[x.why] || ''}</span>` : ''}<span class="tnum">${fmtBytes(x.size)}</span></div>`;
+  const more = (shown, all) => all > shown ? `<div class="more">and ${(all - shown).toLocaleString()} more</div>` : '';
+  let h = '';
+  if (miss) h += `<h3>Missing or changed</h3>${r.missing.map(row).join('')}${more(r.missing.length, miss)}`;
+  if (extra) h += `<h3>Extra (not in the sender's files)</h3>${r.extra.map(row).join('')}${more(r.extra.length, extra)}`;
+  $('#verify-list').innerHTML = h;
+  $('#verify-list').hidden = !h;
+  if (!h) $('#verify-sum').insertAdjacentHTML('beforeend', '<div class="vs wait">Everything matches the sender.</div>');
+  $('#verify-missing').hidden = !miss;
+  $('#verify-missing').textContent = 'Download missing (' + miss.toLocaleString() + ')';
+  $('#verify-extra').hidden = !extra;
+  $('#verify-extra').textContent = 'Remove extra (' + extra.toLocaleString() + ')';
+}
+$('#verify-close').onclick = closeVerify;
+$('#verify-again').onclick = () => runVerify();
+$('#verify').addEventListener('mousedown', e => { if (e.target.id === 'verify') closeVerify(); });
+$('#verify').addEventListener('keydown', e => { if (e.key === 'Escape') closeVerify(); });
+$('#verify-missing').onclick = e => busyBtn(e.currentTarget, async () => {
+  const n = await rpc('recvGetMissing', {id: verifyId});
+  closeVerify();
+  toast('Downloading ' + plural(n, 'missing file', 'missing files'));
+  await refresh();
+});
+$('#verify-extra').onclick = e => {
+  const r = verifyRes;
+  if (!r || !confirm(`Move ${plural(r.extraCount, 'extra file', 'extra files')} (${fmtBytes(r.extraBytes)}) to the Recycle Bin?`)) return;
+  busyBtn(e.currentTarget, async () => {
+    try {
+      const n = await rpc('recvRemoveExtra', {id: verifyId});
+      toast('Moved ' + plural(n, 'file', 'files') + ' to the Recycle Bin');
+    } finally { if (verifyId) runVerify(); }
+  });
+};
+
 async function relocateRecv(t) {
   try {
     const p = await rpc('pickFolder', {name: "Choose the folder with this download's files"});
@@ -621,6 +701,7 @@ function renderReceives(list) {
         openMenu(e.currentTarget, [
           {label: 'Open folder', run: () => rpc('recvOpenDir', {id: t.id})},
           {label: 'Set location…', run: () => relocateRecv(c._t)},
+          {label: 'Check files…', run: () => openVerify(c._t)},
           {label: 'New download link…', run: () => openRelink(c._t)},
           '-',
           {label: done ? 'Remove from list' : 'Cancel download', danger: true, run: async () => {

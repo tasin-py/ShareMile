@@ -76,6 +76,9 @@ type RecvTask struct {
 	got    atomic.Int64 // bytes on disk so far
 	chkN   atomic.Int64 // files being checked before downloading
 	chkOK  atomic.Int64 // ... of which checked so far
+	vBusy  atomic.Bool  // Check files is running
+	vN     atomic.Int64 // files Check files compares with the sender
+	vOK    atomic.Int64 // ... of which compared so far
 	meter  Meter
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -1213,7 +1216,7 @@ func recvView() []map[string]any {
 		t := ts[i]
 		t.mu.Lock()
 		v := map[string]any{"id": t.ID, "token": t.Token, "name": t.Name, "by": t.By, "dir": t.Dir, "count": len(t.Files), "doneCount": len(t.Done),
-			"total": t.Total, "got": t.got.Load(), "chkN": t.chkN.Load(), "chkOK": t.chkOK.Load(), "state": t.State, "err": t.Err, "speed": t.meter.Speed()}
+			"total": t.Total, "got": t.got.Load(), "chkN": t.chkN.Load(), "chkOK": t.chkOK.Load(), "vN": t.vN.Load(), "vOK": t.vOK.Load(), "vBusy": t.vBusy.Load(), "state": t.State, "err": t.Err, "speed": t.meter.Speed()}
 		t.mu.Unlock()
 		out = append(out, v)
 	}

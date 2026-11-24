@@ -358,6 +358,12 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		return p[0], nil
 	case "recvRelocate":
 		return recvRelocate(a.ID, a.Path)
+	case "recvVerify":
+		return recvVerify(a.ID)
+	case "recvGetMissing":
+		return recvGetMissing(a.ID)
+	case "recvRemoveExtra":
+		return recvRemoveExtra(a.ID)
 	case "recvRelink":
 		return true, recvRelink(a.ID, a.URL)
 	case "recvPause":
