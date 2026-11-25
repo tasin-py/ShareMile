@@ -134,6 +134,9 @@ func needsInternet() bool {
 	}
 	cfgMu.Lock()
 	defer cfgMu.Unlock()
+	if cfg.PhoneOn {
+		busy = true
+	}
 	for _, j := range joined {
 		if j.cfg.Seed && len(j.cfg.Have) > 0 {
 			busy = true
@@ -254,8 +257,11 @@ func maybeAutoRelay() {
 	defer autoRelayMu.Unlock()
 	cfgMu.Lock()
 	auto := cfg.AutoRelay != nil && *cfg.AutoRelay
+	phone := cfg.PhoneOn
 	cfgMu.Unlock()
-	want := (auto && !relayUserOff) || hostWantsRelay() // a network set to "Relay" always needs it
+	// A network set to "Relay" always needs it, and so does Receive from phone
+	// (phones are often on mobile data, not the PC's Wi-Fi).
+	want := (auto && !relayUserOff) || hostWantsRelay() || phone
 	n := getNet()
 	if !want {
 		if relayAuto && n.RelayState != "off" && !needsInternet() {

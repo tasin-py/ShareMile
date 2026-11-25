@@ -85,7 +85,7 @@ func pausedGate(w http.ResponseWriter, r *http.Request) bool {
 	if !pausedAll.Load() {
 		return false
 	}
-	if strings.HasPrefix(r.URL.Path, "/s/") || strings.HasPrefix(r.URL.Path, "/n/") {
+	if strings.HasPrefix(r.URL.Path, "/s/") || strings.HasPrefix(r.URL.Path, "/n/") || strings.HasPrefix(r.URL.Path, "/p/") {
 		w.Header().Set("Retry-After", "60")
 		http.Error(w, "Sharing is paused by the sender. Try again later.", http.StatusServiceUnavailable)
 		return true

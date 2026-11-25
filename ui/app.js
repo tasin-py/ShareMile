@@ -1184,6 +1184,59 @@ window.smDropped = paths => {
   toast(`Added ${paths.length} item${paths.length > 1 ? 's' : ''}`);
 };
 
+// ------------------------------------------------------------- receive from phone
+let phoneSel = '';
+function renderPhone(p) {
+  $('#ph-off').hidden = !!p.on;
+  $('#ph-live').hidden = !p.on;
+  if (!p.on) return;
+  const links = p.links || [];
+  // Relay first: phones are often on mobile data. Same Wi-Fi is faster when it fits.
+  const cur = links.find(l => l.kind === phoneSel) || links.find(l => l.url) || links[0];
+  const seg = $('#ph-seg');
+  const key = links.map(l => l.kind + l.url).join('|') + (cur && cur.kind);
+  if (seg.dataset.k !== key) {
+    seg.dataset.k = key;
+    seg.innerHTML = links.map((l, i) => `<button data-i="${i}" class="${cur && l.kind === cur.kind ? 'on' : ''}">${esc(l.label)}</button>`).join('');
+    $$('button', seg).forEach(b => b.onclick = () => { phoneSel = links[+b.dataset.i].kind; seg.dataset.k = ''; renderPhone(S.phone); });
+    const url = cur ? cur.url : '';
+    const inp = $('#ph-url'), img = $('#ph-live .qr img');
+    inp.value = url || (cur && cur.kind === 'relay' ? 'Starting the relay…' : cur ? 'Not available' : 'No network connection');
+    inp.classList.toggle('status', !url);
+    $('#ph-copy').disabled = !url;
+    let note = cur ? cur.note : '';
+    if (cur && cur.kind === 'public') note = 'Works only if this PC is reachable from the internet (see BDIX Transfer in Settings). ' + note;
+    $('#ph-note').textContent = note;
+    $('#ph-live .qr').classList.toggle('off', !url);
+    if (url) qrFor(url).then(src => { img.src = src; }); else img.removeAttribute('src');
+  }
+  const act = p.active || [], got = p.received || [];
+  const box = $('#ph-inbox');
+  const ik = act.map(u => u.name + u.have).join('|') + '#' + got.length;
+  if (box.dataset.k === ik) return;
+  box.dataset.k = ik;
+  let h = '';
+  for (const u of act) {
+    const f = u.size ? u.have / u.size : 1;
+    h += `<div class="ph-up"><div class="row"><span class="nm">${esc(u.name)} <span class="muted">from ${esc(u.device)}</span></span><span class="num">${fmtBytes(u.have)} of ${fmtBytes(u.size)} · ${fmtSpeed(u.speed)}</span></div><div class="bar"><i style="transform:scaleX(${f.toFixed(4)})"></i></div></div>`;
+  }
+  if (got.length) {
+    h += '<b>Received</b>' + got.slice(0, 8).map((g, i) => `<div class="ph-got"><a href="#" data-i="${i}">${esc(g.name)}</a><span>${fmtBytes(g.size)} · ${esc(g.device)}</span></div>`).join('');
+    if (got.length > 8) h += `<span class="muted">and ${(got.length - 8).toLocaleString()} more in the folder</span>`;
+  }
+  if (!h) h = '<span class="muted">Waiting for files. Scan the QR code with your phone\'s camera.</span>';
+  box.innerHTML = h;
+  $$('[data-i]', box).forEach(a => a.onclick = e => { e.preventDefault(); rpc('openPath', {path: got[+a.dataset.i].path}); });
+}
+$('#ph-on').onclick = e => busyBtn(e.currentTarget, async () => { await rpc('phone', {on: true}); await refresh(); });
+$('#ph-stop').onclick = e => busyBtn(e.currentTarget, async () => { await rpc('phone', {on: false}); await refresh(); });
+$('#ph-renew').onclick = e => {
+  if (!confirm('Make a new QR code?\n\nThe current one stops working right away. Phones that saved the old link need to scan again.')) return;
+  busyBtn(e.currentTarget, async () => { await rpc('phone', {on: true, op: 'renew'}); $('#ph-seg').dataset.k = ''; toast('New QR code ready'); await refresh(); });
+};
+$('#ph-folder').onclick = () => rpc('phone', {op: 'folder'});
+$('#ph-copy').onclick = () => copy($('#ph-url').value);
+
 // ------------------------------------------------------------- polling
 let timer = null;
 async function refresh() {
@@ -1194,6 +1247,7 @@ async function refresh() {
     renderHosted(S.hosted || []);
     renderJoined(S.joined || []);
     renderReceives(S.receives || []);
+    renderPhone(S.phone || {});
     renderBookmarks(S.bookmarks || []);
     syncBmButton();
     renderSettings(S);

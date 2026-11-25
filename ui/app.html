@@ -62,6 +62,22 @@
           <button class="btn primary" id="rc-go">Open</button>
         </div>
       </div>
+      <div class="card" id="ph-card">
+        <div class="ph-off" id="ph-off">
+          <div><h3>Receive from phone</h3><p class="muted">Show a QR code. Scan it with a phone and send photos, videos or any files to this PC. Works on mobile data too, no app needed on the phone.</p></div>
+          <button class="btn primary" id="ph-on"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>Receive from phone</button>
+        </div>
+        <div class="share" id="ph-live" hidden>
+          <div class="qr"><img alt="QR code to send files from a phone"></div>
+          <div class="share-body">
+            <div class="share-title"><h3>Receive from phone</h3><div class="row gap"><button class="btn small" id="ph-folder" title="Open the folder phone files are saved in">Open folder</button><button class="btn small" id="ph-renew" title="Make a new QR code. The current one stops working">New link</button><button class="btn small danger" id="ph-stop">Stop receiving</button></div></div>
+            <div class="seg" id="ph-seg"></div>
+            <div class="link"><input readonly spellcheck="false" id="ph-url"><button class="btn" id="ph-copy">Copy link</button></div>
+            <div class="note" id="ph-note"></div>
+            <div class="ph-inbox" id="ph-inbox"></div>
+          </div>
+        </div>
+      </div>
       <div class="card" id="rc-pick" hidden>
         <div class="share-title"><div class="rc-head"><h3 id="rc-name"></h3><span class="muted tnum" id="rc-sum"></span><span class="pill ok" id="rc-by" hidden></span></div>
           <div class="row gap"><button class="btn small chat-btn" id="rc-chat" title="Chat with the sender"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat with sender<span class="badge"></span></button><button class="btn icon x" id="rc-close" title="Close this file list" aria-label="Close this file list">✕</button></div></div>

@@ -42,7 +42,9 @@ type Config struct {
 	ChatName      string          `json:"chatName,omitempty"`
 	Background    *bool           `json:"background,omitempty"` // keep running in the tray when the window closes (default on)
 	TrayHintShown bool            `json:"trayHintShown,omitempty"`
-	ChatKey       string          `json:"chatKey,omitempty"` // private: proves this PC's chat identity
+	ChatKey       string          `json:"chatKey,omitempty"`    // private: proves this PC's chat identity
+	PhoneOn       bool            `json:"phoneOn,omitempty"`    // Receive from phone is on
+	PhoneToken    string          `json:"phoneToken,omitempty"` // the /p/<token>/ link phones send files to
 }
 
 var (

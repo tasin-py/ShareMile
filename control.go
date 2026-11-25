@@ -168,6 +168,14 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		stopShare(a.ID)
 		go syncExposure()
 		return true, nil
+	case "phone":
+		if a.Op == "folder" {
+			d := phoneDir()
+			os.MkdirAll(d, 0o755)
+			return true, shellExec("open", d, "")
+		}
+		setPhone(a.On, a.Op == "renew")
+		return true, nil
 	case "qr":
 		png, err := qrcode.Encode(a.Text, qrcode.Medium, 320)
 		if err != nil {
@@ -647,6 +655,7 @@ func buildState() map[string]any {
 		"net": getNet(), "links": eps, "shares": so, "hosted": ho, "joined": jo, "receives": recvView(), "bookmarks": bookmarksView(),
 		"config":   map[string]any{"port": c.Port, "downloadDir": c.DownloadDir, "theme": c.Theme, "useUpnp": c.UseUPnP, "linkMode": c.LinkMode, "autoRelay": c.AutoRelay != nil && *c.AutoRelay, "chatName": c.ChatName, "background": c.Background == nil || *c.Background},
 		"paused":   isPausedAll(),
+		"phone":    phoneState(mkLinks),
 		"firewall": fw, "publicErr": pe, "listenPort": publicPort,
 	}
 }

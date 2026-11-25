@@ -113,6 +113,7 @@ flowchart LR
 - **Sort file lists** by name, size or date modified.
 - **Chat**: talk to the people downloading your Quick Share (from the app or right in their browser, phones included), or use a **group chat** inside a Share Network. **@mentions** with name suggestions, **reply** to a specific message, and **reactions** (👍 ❤️ 😂 😮 😢 🙏 🔥 🎉). Messages stay on the sharer's / host's PC; nothing goes through an outside server. When someone **@mentions you**, a soft chime plays (unless you're already looking at that chat); ordinary messages stay silent.
 - **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart. A **⋮** menu on each download has **Set location…** (point it at files you already have and it continues), **Check files…** (compare with the sender, then download missing files or remove extra ones) and **New download link…** (paste the sender's new link after they restart). If the sender restarts and shares the same files again under a new link, opening that link continues the old download; files you already have are never fetched twice.
+- **Receive from phone**: press **Receive from phone** on the Receive page and a QR code appears. Scan it with any phone and send photos, videos or any files straight to this PC, over mobile data or Wi-Fi, with no app on the phone. Big files go up in pieces, so they get through the relay and carry on where they stopped if the connection drops or the page reloads.
 - **Download with IDM** (shown when IDM is installed; opens IDM's normal download window for each file) or **Browser download**, if you prefer.
 - **New link / New code**: retire a link or a network code in one click. Anyone holding the old one loses access.
 - **Bookmarks**: save your favourite network codes; they stay in the app and connect in one click.
@@ -178,6 +179,13 @@ Each download in the list has **Pause / Resume** and a **⋮** menu:
 | **Cancel download** / **Remove from list** | Cancel deletes the unfinished parts; on a finished download it only clears it from the list. |
 
 Downloads use 8 connections at once and survive anything: pause and resume, a dropped connection, closing the app, even a crash. If the sender's link changes (their app or PC restarted and they shared the files again), use **New download link…**, or just open the new link on **Receive**: the old download continues where it stopped. Files already finished are kept, never downloaded twice.
+
+#### Receive from phone
+1. On **Receive**, press **Receive from phone**. A QR code appears (the **Relay** link, which works on mobile data too; **Same Wi-Fi / LAN** is faster when the phone is on your Wi-Fi).
+2. Scan it with the phone's camera. A page opens: tap **Choose files** and pick photos, videos or anything else.
+3. Files land in your download folder under **From phone**, keeping their original dates. The card shows each upload's progress and speed, and lists what arrived (click a name to show it in Explorer).
+
+Keep the page open on the phone until it says **Done**. If the connection drops it retries by itself, and if the page is closed, picking the same file again continues where it stopped. **Stop receiving** turns the link off right away; **New link** makes a new QR code and the old one stops working.
 
 **How the file check works.** Before downloading, ShareMile looks at files already in the folder. A file with the sender's exact size and date is finished (ShareMile keeps the sender's dates). A file with the right size but another date, for example one copied by hand, is compared with the sender's copy at three spots, so even a 50 GB file is checked in a moment. A file that doesn't match is downloaded again and replaces it; partial `.smpart` files simply continue. **Check files…** uses the same check at any time, even after a download is done, and also looks for extra files inside the shared folder (never outside it, and not for a single shared file).
 
@@ -275,15 +283,19 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.6.5
+.\build.ps1 -Version 1.7.0
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.6.5\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.7.0\`. Each version gets its own folder and older ones are never overwritten.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.7.0 (2026-11-25)
+- New: Receive from phone. A QR code on the Receive page opens a page on any phone that sends files straight to this PC, over mobile data (through the relay) or the same Wi-Fi. No app needed on the phone. Files are saved in your download folder under From phone with their original dates.
+- Big files go up in 16 MB pieces, so videos of any size get through the relay, and an upload carries on where it stopped after a dropped connection, a reload or an app restart. The app shows live progress and the files received.
+
 v1.6.5 (2026-11-24)
 - Fix: Check files no longer calls a good copy of a missing file "extra". A file like `name (2).ext` left by an earlier download or another app is compared with the sender, and if it matches, Download missing (or Fix missing) puts it in place instead of downloading the file again. Bad copies are still listed as extra.
 - Fix: Remove extra never deletes anything for good without asking. Files too big for the Recycle Bin (or on a drive without one) are left in place, and you're asked separately before they're deleted permanently.
