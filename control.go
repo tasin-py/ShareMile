@@ -10,12 +10,11 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 
 	qrcode "github.com/skip2/go-qrcode"
 )
@@ -172,7 +171,7 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		if a.Op == "folder" {
 			d := phoneDir()
 			os.MkdirAll(d, 0o755)
-			return true, shellExec("open", d, "")
+			return true, openPath(d)
 		}
 		setPhone(a.On, a.Op == "renew")
 		return true, nil
@@ -328,7 +327,7 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		if a.Path == "" {
 			a.Path = cfg.DownloadDir
 			os.MkdirAll(a.Path, 0o755)
-			return true, shellExec("open", a.Path, "")
+			return true, openPath(a.Path)
 		}
 		return true, revealPath(a.Path)
 	case "refreshShare":
@@ -395,12 +394,12 @@ func callRPC(method string, a rpcArgs) (any, error) {
 				p := filepath.Join(t.Dir, cleanRel(strings.SplitN(t.Files[0].Rel, "/", 2)[0]))
 				if st, err := os.Stat(p); err == nil {
 					if st.IsDir() {
-						return true, shellExec("open", p, "")
+						return true, openPath(p)
 					}
 					return true, revealPath(p)
 				}
 			}
-			return true, shellExec("open", t.Dir, "")
+			return true, openPath(t.Dir)
 		}
 		return true, nil
 	case "chat":
@@ -423,10 +422,8 @@ func callRPC(method string, a rpcArgs) (any, error) {
 	case "applyUpdate":
 		return true, applyUpdate()
 	case "firewall":
-		exe, _ := os.Executable()
-		args := `advfirewall firewall add rule name="ShareMile" dir=in action=allow program="` + exe + `" enable=yes profile=any`
-		if err := shellExec("runas", "netsh.exe", args); err != nil {
-			return nil, errors.New("firewall change was cancelled")
+		if err := allowFirewall(); err != nil {
+			return nil, err
 		}
 		go func() { checkFirewallRule() }()
 		return true, nil
@@ -496,9 +493,12 @@ func setConfig(a rpcArgs) error {
 		if err := startPublicServer(port); err != nil {
 			return errors.New("port " + itoa(port) + " is busy. Choose another")
 		}
-		if netState.RelayState == "on" {
+		// The relay points at the port: move it along, also when it is
+		// still starting (it would keep the old port otherwise).
+		if s := getNet().RelayState; s == "on" || s == "starting" || s == "downloading" {
 			startRelay()
 		}
+		go checkFirewallRule()
 	}
 	if restart || upnpChanged {
 		if !cfg.UseUPnP {
@@ -507,19 +507,6 @@ func setConfig(a rpcArgs) error {
 		go refreshNetwork()
 	}
 	return nil
-}
-
-func checkFirewallRule() {
-	cmd := exec.Command("netsh", "advfirewall", "firewall", "show", "rule", "name=ShareMile")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
-	err := cmd.Run()
-	fwMu.Lock()
-	if err == nil {
-		fwState = "allowed"
-	} else {
-		fwState = "missing"
-	}
-	fwMu.Unlock()
 }
 
 // ---- state snapshot for the UI ---------------------------------------------
@@ -653,8 +640,9 @@ func buildState() map[string]any {
 	return map[string]any{
 		"app": appName, "version": appVersion, "repo": "https://github.com/" + repoSlug,
 		"net": getNet(), "links": eps, "shares": so, "hosted": ho, "joined": jo, "receives": recvView(), "bookmarks": bookmarksView(),
-		"config":   map[string]any{"port": c.Port, "downloadDir": c.DownloadDir, "theme": c.Theme, "useUpnp": c.UseUPnP, "linkMode": c.LinkMode, "autoRelay": c.AutoRelay != nil && *c.AutoRelay, "chatName": c.ChatName, "background": c.Background == nil || *c.Background},
-		"paused":   isPausedAll(),
+		"config": map[string]any{"port": c.Port, "downloadDir": c.DownloadDir, "theme": c.Theme, "useUpnp": c.UseUPnP, "linkMode": c.LinkMode, "autoRelay": c.AutoRelay != nil && *c.AutoRelay, "chatName": c.ChatName, "background": c.Background == nil || *c.Background},
+		"paused": isPausedAll(),
+		"os":     runtime.GOOS, "trash": trashName, "fwName": fwShort,
 		"phone":    phoneState(mkLinks),
 		"firewall": fw, "publicErr": pe, "listenPort": publicPort,
 	}

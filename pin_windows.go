@@ -98,19 +98,3 @@ func findShortcut() string {
 	exe, _ := os.Executable()
 	return exe
 }
-
-func passthroughArgs() []string {
-	var out []string
-	for i := 1; i < len(os.Args); i++ {
-		a := os.Args[i]
-		if a == "--data" || a == "--port" {
-			if i+1 < len(os.Args) {
-				out = append(out, a, os.Args[i+1])
-				i++
-			}
-		} else if strings.HasPrefix(a, "--data=") || strings.HasPrefix(a, "--port=") {
-			out = append(out, a)
-		}
-	}
-	return out
-}

@@ -11,7 +11,7 @@
   <a href="https://github.com/tasin-py/ShareMile/releases/latest"><img src="https://img.shields.io/github/v/release/tasin-py/ShareMile?style=for-the-badge&color=2ee6a6&labelColor=0b0b0d" alt="Latest release"></a>
   <a href="https://github.com/tasin-py/ShareMile/releases"><img src="https://img.shields.io/github/downloads/tasin-py/ShareMile/total?style=for-the-badge&color=2a8cff&labelColor=0b0b0d" alt="Downloads"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/tasin-py/ShareMile?style=for-the-badge&color=2ee6a6&labelColor=0b0b0d" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-2a8cff?style=for-the-badge&labelColor=0b0b0d&logo=windows" alt="Windows 10 | 11">
+  <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Linux-2a8cff?style=for-the-badge&labelColor=0b0b0d" alt="Windows 10 | 11 | Linux">
 </p>
 <p align="center">
   <img src="https://img.shields.io/github/go-mod/go-version/tasin-py/ShareMile?style=flat-square&color=00ADD8&labelColor=0b0b0d&logo=go" alt="Go version">
@@ -30,6 +30,8 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-Portable.exe"><b>Portable .exe</b></a>
   &nbsp;·&nbsp;
+  <a href="https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-linux-amd64.tar.gz"><b>Linux (.tar.gz)</b></a>
+  &nbsp;·&nbsp;
   <a href="https://www.supportkori.com/tasinpy"><b>☕ Buy Me a Coffee</b></a>
 </p>
 
@@ -41,7 +43,7 @@
 
 ## What it does
 
-ShareMile turns your PC into a tiny, private file server for exactly the files you pick. Nothing is uploaded to a cloud drive first: the receiver downloads from your machine while you share.
+ShareMile turns your PC (Windows or Linux) into a tiny, private file server for exactly the files you pick. Nothing is uploaded to a cloud drive first: the receiver downloads from your machine while you share.
 
 **It works through a relay, on any connection.** Every link goes through a free, encrypted Cloudflare relay by default, so it opens from any country, on any ISP, with no router setup. Most home connections in Bangladesh share one IP between many customers (no "real IP"), and the relay is what makes sharing work there.
 
@@ -100,6 +102,7 @@ flowchart LR
 
 ## Features
 
+- **Windows and Linux**: the same app with every feature on both, and they share with each other in both directions. The Linux version uses GTK and WebKitGTK, your Downloads folder, the Trash, and firewalld or ufw. Names Windows can't store (`a:b.txt`, `CON`, or `Photo.JPG` next to `photo.jpg`) are renamed safely when a Windows PC receives them.
 - **Pick files or folders, or drag them in**: drop files and folders anywhere on the Quick Share page (or paste a path). ShareMile scans them and shows the count and size before you start.
 - **Link + QR code + copy button** for every share. The **Relay** link is the default and works everywhere; Same Wi-Fi, IPv6 and **BDIX Transfer** (real IP only) links sit next to it.
 - **A browser page that needs no app**: thumbnails, folder browsing, search, image/video/audio/PDF/text preview, per-file download, folder ZIP, "Download all", and multi-select ZIP. It works on phones too.
@@ -119,7 +122,7 @@ flowchart LR
 - **Bookmarks**: save your favourite network codes; they stay in the app and connect in one click.
 - **Paste buttons** next to **Open** and **Join**, so a copied link or code goes in with one click.
 - **Your name**: ShareMile asks once on first start. People see **"Connected with …"** your name (and you see theirs) on shares, downloads and networks. Change it any time in *Settings → You*.
-- **Runs in the background**: closing the window keeps ShareMile in the notification area (next to the clock), so shares and networks stay online. Right-click the icon for **Open**, **Pause sharing** / **Resume sharing** and **Exit**. Turn it off in *Settings → App*.
+- **Runs in the background**: closing the window keeps ShareMile in the notification area (next to the clock), so shares and networks stay online. Right-click the icon for **Open**, **Pause sharing** / **Resume sharing** and **Exit**. Turn it off in *Settings → App*. On Linux the icon needs a desktop with a tray (KDE, Cinnamon, XFCE, MATE, or GNOME with the AppIndicator extension); without one, closing the window while sharing minimizes it instead.
 - **Pause sharing**: takes every link and network offline and pauses downloads in one click; **Resume** brings them all back.
 - **Refresh** on a joined network asks the host to recheck its folders right away; hosts also pick up added, changed or deleted files by themselves.
 - **Files back to you**: let people drop files back to you from the share page.
@@ -130,6 +133,8 @@ flowchart LR
 
 ## Install
 
+### Windows
+
 1. Download **[ShareMile-Setup.exe](https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-Setup.exe)** and run it. You can choose the install folder.
 2. On the last page, everything is ticked by default (untick what you don't want):
    - Add ShareMile to Desktop
@@ -139,6 +144,20 @@ flowchart LR
 3. To uninstall, use *Settings → Apps → ShareMile → Uninstall*. It removes the app, shortcuts and firewall rule, and asks before deleting your settings.
 
 Prefer no installer? Grab **[ShareMile-Portable.exe](https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-Portable.exe)**. It needs the Microsoft Edge WebView2 Runtime, which Windows 10/11 already include.
+
+### Linux
+
+1. Download **[ShareMile-linux-amd64.tar.gz](https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-linux-amd64.tar.gz)** and unpack it.
+2. In the `ShareMile` folder, run:
+   ```sh
+   ./install.sh
+   ```
+   It installs for you without root (in `~/.local/share/sharemile`, with an app menu entry and a `sharemile` command). If GTK 3 or WebKitGTK 4.1 is missing, it installs them with your package manager (pacman, apt, dnf, zypper, xbps or apk) and asks for your password for that step only.
+3. At the end it offers the same options as the Windows installer, all on by default: add a desktop icon, pin to the dock (GNOME), open the project's GitHub page, and launch ShareMile. Answer `n` to skip one, or use `-y` to accept them all.
+
+`sudo ./install.sh` installs it for every user in `/opt/sharemile`. To remove it, run `~/.local/share/sharemile/uninstall.sh` (it keeps your settings unless you add `--purge`). One-click updates work on Linux too.
+
+Tested on Arch Linux, Ubuntu 24.04 and 26.04, Debian 13, Fedora 44, openSUSE Tumbleweed and Kali. It needs glibc 2.34 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later). On a server without a desktop, run `sharemile --headless` and open the address it prints.
 
 ## Usage
 
@@ -269,7 +288,7 @@ Real-world speed is capped by the slower of the two internet connections.
 ## How it works (short version)
 
 - A Go backend serves your files over HTTP on one port (default `8750`). Every Quick Share gets a random 96-bit token in its URL, so links can't be guessed.
-- The UI is plain HTML in a WebView2 window, talking to the backend over a token-protected `127.0.0.1` connection.
+- The UI is plain HTML in a WebView2 window (WebKitGTK on Linux), talking to the backend over a token-protected `127.0.0.1` connection.
 - A network code (`SM-…`) packs a random 80-bit key plus every address your PC can be reached on (LAN, public IPv4, IPv6, relay). Joining needs no central server. On the same LAN, members also find the host by UDP broadcast.
 - Swarm downloads split files into 4 MB pieces. Pieces from other members are checked against SHA-256 hashes from the host before they're written.
 - The built-in downloader splits files into 4 MB ranges fetched over 8 connections into a sparse `.smpart` file, with a small `.smpart.json` record of finished ranges, so it can resume after anything.
@@ -283,15 +302,30 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.7.0
+.\build.ps1 -Version 1.8.0
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.7.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.8.0\`. Each version gets its own folder and older ones are never overwritten.
+
+**Linux** (on Ubuntu 24.04 or newer; needs `gcc`, `pkg-config`, `libgtk-3-dev` and `libwebkit2gtk-4.1-dev`):
+
+```sh
+packaging/linux/build-linux.sh 1.8.0
+```
+Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v1.8.0/`.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.8.0 (2026-11-27)
+- New: ShareMile for Linux, with every feature of the Windows app: Quick Share, Share Network, the built-in downloader, Receive from phone, chat, the relay, BDIX Transfer, themes and one-click updates. Download ShareMile-linux-amd64.tar.gz and run ./install.sh. It installs the libraries it needs, adds ShareMile to the app menu and can add a desktop icon, pin it to the dock and launch it.
+- Linux: tray icon with Open, Pause sharing and Exit; notifications; drag and drop from the file manager; your Downloads folder; Check files moves extra files to the Trash; firewalld and ufw are handled by Allow through the firewall. Tested on Arch, Ubuntu 24.04 and 26.04, Debian 13, Fedora 44, openSUSE Tumbleweed and Kali.
+- Windows and Linux share with each other both ways. Names Windows can't store are renamed safely when a Windows PC receives them: a:b.txt becomes a_b.txt, CON becomes CON_, and photo.jpg next to Photo.JPG becomes photo (2).jpg, so no file overwrites another.
+- Fix: files whose names start with a dot (.gitignore, .hidden.conf) keep the dot when a Windows PC receives them.
+- Fix: changing the port while the relay was starting left the relay pointing at the old port, and restarting the relay while it downloaded could start two relays.
+- Fix: when Cloudflare refuses a new relay link (for example, too many in a short time), the app says so within seconds instead of waiting 40 seconds and blaming your internet connection.
+
 v1.7.0 (2026-11-25)
 - New: Receive from phone. A QR code on the Receive page opens a page on any phone that sends files straight to this PC, over mobile data (through the relay) or the same Wi-Fi. No app needed on the phone. Files are saved in your download folder under From phone with their original dates.
 - Big files go up in 16 MB pieces, so videos of any size get through the relay, and an upload carries on where it stopped after a dropped connection, a reload or an app restart. The app shows live progress and the files received.

@@ -997,6 +997,7 @@ func (j *JoinNet) refreshManifest(fresh bool) error {
 	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
 		return err
 	}
+	localRels(len(m.Files), func(i int) string { return m.Files[i].Rel }, func(i int, r string) { m.Files[i].Rel = r })
 	j.mu.Lock()
 	j.man = &m
 	code := j.cfg.Code
@@ -1249,11 +1250,10 @@ func (j *JoinNet) runTask(ctx context.Context, t *DLTask) {
 func cleanRel(rel string) string {
 	var parts []string
 	for _, p := range strings.Split(rel, "/") {
-		p = safeName(p)
-		if p == ".." || p == "." {
-			continue
+		if t := strings.TrimSpace(p); t == "" || t == ".." || t == "." {
+			continue // never step out of (or stay at) the folder
 		}
-		parts = append(parts, p)
+		parts = append(parts, safeName(p))
 	}
 	return filepath.Join(parts...)
 }

@@ -460,17 +460,51 @@ func handleUpload(w http.ResponseWriter, r *http.Request, s *Share) {
 }
 
 func safeName(n string) string {
+	if !windowsNames {
+		// Linux allows anything but "/" and NUL. Keep names as they are
+		// (":" or a leading dot included), only make them one safe path part.
+		n = strings.Map(func(r rune) rune {
+			if r == '/' || r < 32 {
+				return '_'
+			}
+			return r
+		}, n)
+		if n == "" || n == "." || n == ".." {
+			n = "file"
+		}
+		return n
+	}
 	n = strings.Map(func(r rune) rune {
 		if strings.ContainsRune(`<>:"/\|?*`, r) || r < 32 {
 			return '_'
 		}
 		return r
 	}, n)
-	n = strings.Trim(n, ". ")
+	// Windows refuses names ending in a dot or space; a leading dot is fine
+	// (".gitignore"), so only the end is trimmed (and leading spaces).
+	n = strings.TrimLeft(strings.TrimRight(n, ". "), " ")
 	if n == "" {
 		n = "file"
 	}
+	// Device names (CON, aux.txt, COM1...) can't be files on Windows 10.
+	stem, ext := n, ""
+	if i := strings.IndexByte(n, '.'); i > 0 {
+		stem, ext = n[:i], n[i:]
+	}
+	if reservedWinName(stem) {
+		n = stem + "_" + ext
+	}
 	return n
+}
+
+func reservedWinName(s string) bool {
+	switch u := strings.ToUpper(strings.TrimRight(s, " ")); u {
+	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
+		return true
+	default:
+		r := []rune(u)
+		return len(r) == 4 && (strings.HasPrefix(u, "COM") || strings.HasPrefix(u, "LPT")) && strings.ContainsRune("123456789¹²³", r[3])
+	}
 }
 
 func uniquePath(p string) string {

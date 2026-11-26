@@ -19,9 +19,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/registry"
 )
 
 // In-app receiver for Quick Share links: downloads selected files with several
@@ -167,6 +164,7 @@ func fetchManifest(raw string) (*recvManifest, error) {
 		return nil, errors.New("the link didn't return a file list")
 	}
 	m.Token, m.Base = token, base
+	localRels(len(m.Files), func(i int) string { return m.Files[i].Rel }, func(i int, r string) { m.Files[i].Rel = r })
 	return &m, nil
 }
 
@@ -675,8 +673,7 @@ func (t *RecvTask) run(ctx context.Context) error {
 		}
 		// Sparse: parallel connections write out of order, and without this
 		// NTFS zero-fills every gap first, doubling the disk writes.
-		var ret uint32
-		windows.DeviceIoControl(windows.Handle(fh.Fd()), 0x000900c4 /* FSCTL_SET_SPARSE */, nil, 0, nil, 0, &ret, nil)
+		setSparse(fh)
 		if err := fh.Truncate(f.Size); err != nil {
 			fh.Close()
 			return err
@@ -1224,27 +1221,6 @@ func recvView() []map[string]any {
 }
 
 // ---- IDM and browser hand-off -------------------------------------------------
-
-func idmPath() string {
-	for _, root := range []registry.Key{registry.CURRENT_USER, registry.LOCAL_MACHINE} {
-		if k, err := registry.OpenKey(root, `Software\DownloadManager`, registry.QUERY_VALUE); err == nil {
-			p, _, err := k.GetStringValue("ExePath")
-			k.Close()
-			if err == nil && fileExists(p) {
-				return p
-			}
-		}
-	}
-	for _, p := range []string{
-		os.Getenv("ProgramFiles(x86)") + `\Internet Download Manager\IDMan.exe`,
-		os.Getenv("ProgramFiles") + `\Internet Download Manager\IDMan.exe`,
-	} {
-		if fileExists(p) {
-			return p
-		}
-	}
-	return ""
-}
 
 // recvIDM hands each selected file to IDM as a normal download (keeping
 // folders). IDM shows its usual "Download File Info" window, so the user can

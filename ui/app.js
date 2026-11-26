@@ -233,7 +233,7 @@ function renderShares(list) {
       let url = cur ? cur.url : '', text = cur ? cur.note : '', status = '';
       if (isBdix && !bdixReady) {
         url = '';
-        status = {checking: 'Checking BDIX Transfer…', noRealIP: '[Real IP Not enabled]', needForward: '[Port forwarding needed]', firewall: '[Blocked by Windows Firewall]', error: '[Check failed]'}[n.bdix] || '[Not checked yet]';
+        status = {checking: 'Checking BDIX Transfer…', noRealIP: '[Real IP Not enabled]', needForward: '[Port forwarding needed]', firewall: '[Blocked by ' + (S.fwName || 'the firewall') + ']', error: '[Check failed]'}[n.bdix] || '[Not checked yet]';
         text = n.bdixMsg || 'Press Check now to test whether people on the internet can reach this PC directly (uses portchecker.io).';
       } else if (isBdix) {
         text = 'Reachable from the internet ✓ ' + cur.note;
@@ -266,7 +266,7 @@ function renderShares(list) {
       if (recv.dataset.k !== k) {
         recv.dataset.k = k;
         recv.innerHTML = s.received && s.received.length
-          ? '<b>Received</b>' + s.received.slice(-6).reverse().map(p => `<a href="#" data-path="${esc(p)}">${esc(p.split('\\').pop())}</a>`).join('')
+          ? '<b>Received</b>' + s.received.slice(-6).reverse().map(p => `<a href="#" data-path="${esc(p)}">${esc(p.split(/[\\/]/).pop())}</a>`).join('')
           : '<span class="muted">Uploads are on. Files receivers send you appear here.</span>';
         $$('[data-path]', recv).forEach(a => a.onclick = e => { e.preventDefault(); rpc('openPath', {path: a.dataset.path}); });
       }
@@ -648,12 +648,13 @@ $('#verify-missing').onclick = e => busyBtn(e.currentTarget, async () => {
 });
 $('#verify-extra').onclick = e => {
   const r = verifyRes;
-  if (!r || !confirm(`Move ${plural(r.extraCount, 'extra file', 'extra files')} (${fmtBytes(r.extraBytes)}) to the Recycle Bin?`)) return;
+  const bin = S.trash || 'Recycle Bin';
+  if (!r || !confirm(`Move ${plural(r.extraCount, 'extra file', 'extra files')} (${fmtBytes(r.extraBytes)}) to the ${bin}?`)) return;
   busyBtn(e.currentTarget, async () => {
     try {
       const n = await rpc('recvRemoveExtra', {id: verifyId});
-      if (n.removed) toast('Moved ' + plural(n.removed, 'file', 'files') + ' to the Recycle Bin');
-      if (n.tooBig && confirm(`${plural(n.tooBig, 'extra file is', 'extra files are')} too big for the Recycle Bin (${fmtBytes(n.tooBigBytes)}). Delete ${n.tooBig === 1 ? 'it' : 'them'} permanently? This can't be undone.`)) {
+      if (n.removed) toast('Moved ' + plural(n.removed, 'file', 'files') + ' to the ' + bin);
+      if (n.tooBig && confirm(`${plural(n.tooBig, 'extra file is', 'extra files are')} ${S.os === 'linux' ? "can't go to the Trash on that drive" : 'too big for the Recycle Bin'} (${fmtBytes(n.tooBigBytes)}). Delete ${n.tooBig === 1 ? 'it' : 'them'} permanently? This can't be undone.`)) {
         const d = await rpc('recvRemoveExtra', {id: verifyId, on: true});
         toast('Deleted ' + plural(d.removed, 'file', 'files') + ' permanently');
       } else if (n.tooBig) {
@@ -1020,6 +1021,7 @@ function renderSettings(s) {
   $('#set-upnp').checked = c.useUpnp;
   $('#set-autorelay').checked = c.autoRelay;
   $$('.fwwarn').forEach(w => w.hidden = s.firewall !== 'missing');
+  osWords(s);
   $('#set-dldir').value = c.downloadDir;
   if (document.activeElement !== $('#set-chatname')) $('#set-chatname').value = c.chatName || '';
   $('#set-background').checked = c.background;
@@ -1150,11 +1152,27 @@ $$('[data-paste]').forEach(b => b.onclick = async () => {
   inp.value = t; inp.dispatchEvent(new Event('input')); inp.focus();
 });
 
+// ------------------------------------------------------------- Windows / Linux wording
+let osDone = false;
+function osWords(s) {
+  if (osDone || !s.os) return;
+  osDone = true;
+  document.documentElement.dataset.os = s.os;
+  if (s.os !== 'linux') return;
+  $$('.fwwarn').forEach(w => { if (w.firstChild && w.firstChild.nodeType === 3) w.firstChild.textContent = w.firstChild.textContent.replace('Windows Firewall', 'Your firewall'); });
+  $$('[data-fw]').forEach(b => b.textContent = 'Open ShareMile\'s port in the firewall');
+  $('#fw-btn').textContent = 'Open the port in the firewall';
+}
+
 // ------------------------------------------------------------- drag and drop
 // Drop files or folders anywhere on Quick Share (or Network → Host). The page
 // can't see real paths, so the files go to the app, which reads their paths.
 let dragDepth = 0, dropFor = null;
-const dragHasFiles = e => [...((e.dataTransfer && e.dataTransfer.types) || [])].includes('Files');
+// WebKitGTK shows a file manager's drag as a text/uri-list, not as Files.
+const dragHasFiles = e => {
+  const ty = [...((e.dataTransfer && e.dataTransfer.types) || [])];
+  return ty.includes('Files') || (window.smNative === 'gtk' && ty.includes('text/uri-list'));
+};
 const dropTarget = () => $('#page-quick').classList.contains('on') ? 'qs'
   : $('#page-network').classList.contains('on') && $('#tab-host').classList.contains('on') ? 'hn' : null;
 function showDrop(on) {
@@ -1167,21 +1185,33 @@ function showDrop(on) {
 document.addEventListener('dragenter', e => { if (!dragHasFiles(e)) return; e.preventDefault(); dragDepth++; showDrop(true); });
 document.addEventListener('dragover', e => { if (!dragHasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = dropTarget() ? 'copy' : 'none'; });
 document.addEventListener('dragleave', e => { if (!dragHasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; showDrop(false); } });
+// Windows: the page hands the dropped files to the app, which answers with
+// their paths. Linux: the window reads the paths itself and sends them,
+// before or after the page sees the drop, so both sides wait for each other.
+let dropPaths = null, dropAt = 0;
+function useDrop() {
+  if (!dropFor || !dropPaths || Date.now() - dropAt > 4000) return;
+  const t = dropFor, paths = dropPaths;
+  dropFor = null; dropPaths = null;
+  if (!paths.length) { toast('Couldn\'t read the dropped items. Use Add files instead', true); return; }
+  addPaths(t, paths);
+  toast(`Added ${paths.length} item${paths.length > 1 ? 's' : ''}`);
+}
 document.addEventListener('drop', e => {
   if (!dragHasFiles(e)) return;
   e.preventDefault(); dragDepth = 0; showDrop(false);
   const t = dropTarget();
-  if (!t || !e.dataTransfer.files.length) return;
+  if (!t) { dropPaths = null; return; }
+  if (window.smNative === 'gtk') { dropFor = t; dropAt = dropPaths ? dropAt : Date.now(); useDrop(); return; }
+  if (!e.dataTransfer.files.length) return;
   const wvw = window.chrome && window.chrome.webview;
   if (!wvw || !wvw.postMessageWithAdditionalObjects) { toast('Drag and drop needs a newer Microsoft Edge WebView2. Use Add files instead', true); return; }
-  dropFor = t;
+  dropFor = t; dropPaths = null; dropAt = Date.now();
   wvw.postMessageWithAdditionalObjects('sm-drop', e.dataTransfer.files);
 });
 window.smDropped = paths => {
-  if (!dropFor) return;
-  if (!paths || !paths.length) { toast('Couldn\'t read the dropped items. Use Add files instead', true); return; }
-  addPaths(dropFor, paths);
-  toast(`Added ${paths.length} item${paths.length > 1 ? 's' : ''}`);
+  dropPaths = paths || []; dropAt = Date.now();
+  useDrop();
 };
 
 // ------------------------------------------------------------- receive from phone

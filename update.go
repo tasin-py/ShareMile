@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -77,13 +76,7 @@ func checkUpdate() (*ReleaseInfo, error) {
 	}
 	info := &ReleaseInfo{Tag: rel.Tag, Notes: rel.Body}
 	for _, a := range rel.Assets {
-		n := strings.ToLower(a.Name)
-		switch {
-		case n == "sharemile-portable.exe" || n == "sharemile.exe": // portable build (old releases: ShareMile.exe)
-			info.ExeURL = a.URL
-		case strings.HasPrefix(n, "sharemile-setup") && strings.HasSuffix(n, ".exe"):
-			info.SetupURL = a.URL
-		}
+		matchAsset(strings.ToLower(a.Name), a.URL, info)
 	}
 	info.Available = newer(rel.Tag, appVersion) && (info.ExeURL != "" || info.SetupURL != "")
 	return info, nil
@@ -107,7 +100,8 @@ func checkUpdateViaRedirect() (*ReleaseInfo, error) {
 	}
 	tag := loc[i+5:]
 	base := "https://github.com/" + repoSlug + "/releases/download/" + tag + "/"
-	info := &ReleaseInfo{Tag: tag, ExeURL: base + "ShareMile-Portable.exe", SetupURL: base + "ShareMile-Setup.exe"}
+	info := &ReleaseInfo{Tag: tag}
+	guessAssets(base, info)
 	info.Available = newer(tag, appVersion)
 	return info, nil
 }
@@ -133,15 +127,6 @@ func download(url, dst string) error {
 	if err != nil {
 		return err
 	}
-	b := make([]byte, 2)
-	if fh, err := os.Open(dst); err == nil {
-		fh.Read(b)
-		fh.Close()
-	}
-	if string(b) != "MZ" {
-		os.Remove(dst)
-		return errors.New("the downloaded update is not a valid program")
-	}
 	return nil
 }
 
@@ -154,60 +139,6 @@ func dirWritable(dir string) bool {
 	return true
 }
 
-// applyUpdate downloads the new version, swaps it in and relaunches. The
-// returned function must be called to quit the current process.
-func applyUpdate() error {
-	info, err := checkUpdate()
-	if err != nil {
-		return err
-	}
-	if !info.Available {
-		return errors.New("you already have the latest version")
-	}
-	exe, _ := os.Executable()
-	dir := filepath.Dir(exe)
-	if info.ExeURL != "" && dirWritable(dir) {
-		nw := exe + ".new"
-		err := download(info.ExeURL, nw)
-		if err != nil && strings.HasSuffix(info.ExeURL, "/ShareMile-Portable.exe") {
-			// releases before v1.2.0 named the portable file ShareMile.exe
-			err = download(strings.TrimSuffix(info.ExeURL, "ShareMile-Portable.exe")+"ShareMile.exe", nw)
-		}
-		if err != nil {
-			return err
-		}
-		old := exe + ".old"
-		os.Remove(old)
-		if err := os.Rename(exe, old); err != nil {
-			os.Remove(nw)
-			return errors.New("couldn't replace the running program: " + err.Error())
-		}
-		if err := os.Rename(nw, exe); err != nil {
-			os.Rename(old, exe)
-			return err
-		}
-		cmd := exec.Command(exe, append([]string{"--updated"}, passthroughArgs()...)...)
-		if err := cmd.Start(); err != nil {
-			return err
-		}
-		go func() { time.Sleep(300 * time.Millisecond); quitApp() }()
-		return nil
-	}
-	if info.SetupURL == "" {
-		return errors.New("this release has no installer for your setup")
-	}
-	setup := filepath.Join(os.TempDir(), "ShareMile-Setup-"+info.Tag+".exe")
-	if err := download(info.SetupURL, setup); err != nil {
-		return err
-	}
-	// The installer closes this app, installs silently and relaunches it.
-	if err := shellExec("runas", setup, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RELAUNCH=1"); err != nil {
-		return err
-	}
-	go func() { time.Sleep(300 * time.Millisecond); quitApp() }()
-	return nil
-}
-
 func cleanupOldExe() {
 	exe, _ := os.Executable()
 	for i := 0; i < 10; i++ {
@@ -216,4 +147,20 @@ func cleanupOldExe() {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+func passthroughArgs() []string {
+	var out []string
+	for i := 1; i < len(os.Args); i++ {
+		a := os.Args[i]
+		if a == "--data" || a == "--port" {
+			if i+1 < len(os.Args) {
+				out = append(out, a, os.Args[i+1])
+				i++
+			}
+		} else if strings.HasPrefix(a, "--data=") || strings.HasPrefix(a, "--port=") {
+			out = append(out, a)
+		}
+	}
+	return out
 }

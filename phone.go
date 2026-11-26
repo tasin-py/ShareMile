@@ -14,8 +14,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"golang.org/x/sys/windows"
 )
 
 // "Receive from phone": the app shows a QR code for /p/<token>/. A phone (or
@@ -312,18 +310,6 @@ func (c phoneCounter) Write(p []byte) (int, error) {
 	c.u.Have.Add(int64(n))
 	c.u.Seen.Store(time.Now().UnixMilli())
 	return n, err
-}
-
-func freeBytes(dir string) (uint64, bool) {
-	p, err := windows.UTF16PtrFromString(dir)
-	if err != nil {
-		return 0, false
-	}
-	var free uint64
-	if windows.GetDiskFreeSpaceEx(p, &free, nil, nil) != nil {
-		return 0, false
-	}
-	return free, true
 }
 
 // phoneView is the inbox for the app: uploads in progress and files received.

@@ -1,19 +1,13 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
-	"time"
-	"unsafe"
-
-	webview2 "github.com/jchv/go-webview2"
-	"golang.org/x/sys/windows"
+	"runtime"
+	"syscall"
 )
 
 const appName = "ShareMile"
@@ -22,37 +16,27 @@ var appVersion = "1.0.0" // overridden at build time with -ldflags "-X main.appV
 
 var (
 	dataDirOverride string
-	wv              webview2.WebView
 	headless        bool
 	quitCh          = make(chan struct{})
 )
 
-var (
-	dwmapi       = windows.NewLazySystemDLL("dwmapi.dll")
-	procDwmSetAt = dwmapi.NewProc("DwmSetWindowAttribute")
-)
-
-func setDarkTitle(dark bool) {
-	if mainHwnd == 0 {
-		return
-	}
-	v := int32(0)
-	if dark {
-		v = 1
-	}
-	procDwmSetAt.Call(mainHwnd, 20, uintptr(unsafe.Pointer(&v)), 4)
+func init() {
+	// The window toolkit (GTK on Linux) must stay on the main thread.
+	runtime.LockOSThread()
 }
 
 func isDarkTheme(t string) bool { return t != "light" && t != "paper" }
 
 func quitApp() {
-	if headless {
-		close(quitCh)
+	if headless || !guiActive() {
+		select {
+		case <-quitCh:
+		default:
+			close(quitCh)
+		}
 		return
 	}
-	if wv != nil {
-		wv.Dispatch(func() { wv.Terminate() })
-	}
+	guiQuit()
 }
 
 func busy() bool {
@@ -86,8 +70,13 @@ func main() {
 	flag.BoolVar(&pinStart, "pin-start", false, "pin ShareMile to Start and exit")
 	desktop := flag.Bool("desktop-shortcut", false, "create a desktop shortcut and exit")
 	updated := flag.Bool("updated", false, "internal: started after an update")
+	showVer := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
 
+	if *showVer {
+		fmt.Println(appName, appVersion)
+		return
+	}
 	if *desktop {
 		if makeDesktopShortcut() != nil {
 			os.Exit(1)
@@ -105,21 +94,8 @@ func main() {
 		return
 	}
 
-	// One instance per data folder.
-	h := sha256.Sum256([]byte(strings.ToLower(appDataDir())))
-	mtx, _ := windows.UTF16PtrFromString("Local\\ShareMile-" + hex.EncodeToString(h[:6]))
-	for tries := 0; ; tries++ {
-		hm, err := windows.CreateMutex(nil, false, mtx)
-		if err != windows.ERROR_ALREADY_EXISTS {
-			break
-		}
-		windows.CloseHandle(hm)
-		// Right after a self-update the old copy is still shutting down: wait for it.
-		if !*updated || tries >= 60 {
-			focusExisting()
-			return
-		}
-		time.Sleep(250 * time.Millisecond)
+	if !singleInstance(*updated) {
+		return
 	}
 
 	go cleanupOldExe()
@@ -153,50 +129,24 @@ func main() {
 		stopRelay()
 	}()
 
+	if !headless && !guiAvailable() {
+		// No desktop to show a window on (an SSH session or a server):
+		// keep running and serve the app page to a browser instead.
+		headless = true
+		fmt.Fprintln(os.Stderr, "No display found. Open this address in a browser on this computer to use ShareMile:")
+	}
 	if headless {
 		fmt.Println(ctrlURL)
 		os.WriteFile(filepath.Join(appDataDir(), "control-url.txt"), []byte(ctrlURL), 0o600)
 		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, os.Interrupt)
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 		select {
 		case <-sig:
 		case <-quitCh:
 		}
 		return
 	}
-
-	// Keep the UI shell light: no GPU process, one renderer, no background extras.
-	if os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") == "" {
-		os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu --disable-gpu-compositing --renderer-process-limit=1 --disable-extensions --disable-background-networking --disable-component-update --autoplay-policy=no-user-gesture-required --disable-features=msSmartScreenProtection,Translate,AutofillServerCommunication,msEdgeShopping")
-	}
-	wv = webview2.NewWithOptions(webview2.WebViewOptions{
-		DataPath:  filepath.Join(appDataDir(), "webview"),
-		AutoFocus: true,
-		WindowOptions: webview2.WindowOptions{
-			Title:  appName,
-			Width:  1040,
-			Height: 720,
-			IconId: 1,
-			Center: true,
-		},
-	})
-	if wv == nil {
-		if messageBox(appName, "ShareMile needs the Microsoft Edge WebView2 Runtime, which is missing on this PC.\n\nOpen the download page now?", 0x34) == 6 {
-			openURL("https://go.microsoft.com/fwlink/p/?LinkId=2124703")
-		}
-		return
-	}
-	defer wv.Destroy()
-	mainHwnd = uintptr(wv.Window())
-	wv.SetSize(780, 560, webview2.HintMin)
-	setDarkTitle(isDarkTheme(cfg.Theme))
-	wv.Bind("smSetDarkTitle", func(dark bool) error { setDarkTitle(dark); return nil })
-	installDropHandler(wv)
-	hookClose(mainHwnd, onWindowClose)
-	syncTray()
-	wv.Navigate(ctrlURL)
-	wv.Run()
-	removeTray()
+	runGUI()
 }
 
 func appDataDirOverride() string { return dataDirOverride }

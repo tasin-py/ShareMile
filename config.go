@@ -57,7 +57,10 @@ func appDataDir() string {
 		os.MkdirAll(dataDirOverride, 0o755)
 		return dataDirOverride
 	}
-	d := os.Getenv("APPDATA")
+	d := ""
+	if windowsNames {
+		d = os.Getenv("APPDATA")
+	}
 	if d == "" {
 		d, _ = os.UserConfigDir()
 	}
@@ -67,8 +70,7 @@ func appDataDir() string {
 }
 
 func defaultDownloadDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Downloads", "ShareMile")
+	return filepath.Join(downloadsFolder(), "ShareMile")
 }
 
 func loadConfig() {

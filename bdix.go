@@ -100,7 +100,7 @@ func runBDIXCheck() {
 	case err != nil:
 		setBDIX("error", "Couldn't run the outside test ("+err.Error()+"). Check again in a minute.")
 	case fw == "missing":
-		setBDIX("firewall", "Windows Firewall is blocking incoming connections to ShareMile. Go to Settings → Allow through Windows Firewall, then check again.")
+		setBDIX("firewall", fwLong+" is blocking incoming connections to ShareMile. Go to Settings → Allow through "+fwShort+", then check again.")
 	case n.RealIP == "yes":
 		learn("yes")
 		setBDIX("needForward", forward)

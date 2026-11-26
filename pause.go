@@ -75,7 +75,7 @@ func setPausedAll(on bool) {
 		}
 		pausedRecv, pausedSwarm = nil, nil
 	}
-	if mainHwnd != 0 {
+	if guiActive() {
 		go syncTray()
 	}
 }
