@@ -321,22 +321,25 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 2.0.0
+.\build.ps1 -Version 2.0.1
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v2.0.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v2.0.1\`. Each version gets its own folder and older ones are never overwritten.
 
 **Linux** (on Ubuntu 24.04 or newer; needs `gcc`, `pkg-config`, `libgtk-3-dev` and `libwebkit2gtk-4.1-dev`):
 
 ```sh
-packaging/linux/build-linux.sh 2.0.0
+packaging/linux/build-linux.sh 2.0.1
 ```
-Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v2.0.0/`.
+Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v2.0.1/`.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v2.0.1 (2026-11-28)
+- Fixed: on long pages such as Settings, the window could scroll past the end of the app into empty space. The hidden check box behind each switch now stays inside its own row.
+
 v2.0.0 (2026-11-28)
 - New: Windows XP theme (Settings, Theme, second choice). It is a flat, 2D Classic XP look: the blue title bar shows ShareMile and its version, with XP minimize, maximize and close buttons, and the window has a blue frame and square corners. You also get the blue task pane, beige group boxes, small sharp-cornered push buttons, check boxes and XP tabs. Progress is a green block bar, and anything loading shows an XP marquee. The title bar drags, snaps, double-click maximizes, and maximize stops at the taskbar.
 - On Linux the Windows XP theme uses the system title bar, and everything inside the window is the same.
