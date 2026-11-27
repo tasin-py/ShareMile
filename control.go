@@ -167,6 +167,18 @@ func callRPC(method string, a rpcArgs) (any, error) {
 		stopShare(a.ID)
 		go syncExposure()
 		return true, nil
+	case "nearbyScan":
+		return nearbyScan(), nil
+	case "nearbySend":
+		return nearbySend(a.ID, a.Code)
+	case "nearbyAnswer":
+		return nearbyAnswer(a.ID, a.On)
+	case "nearbyVisible":
+		cfgMu.Lock()
+		cfg.NearbyHidden = !a.On
+		saveConfigLocked()
+		cfgMu.Unlock()
+		return true, nil
 	case "phone":
 		if a.Op == "folder" {
 			d := phoneDir()
@@ -644,6 +656,7 @@ func buildState() map[string]any {
 		"paused": isPausedAll(),
 		"os":     runtime.GOOS, "trash": trashName, "fwName": fwShort,
 		"phone":    phoneState(mkLinks),
+		"nearby":   nearbyView(),
 		"firewall": fw, "publicErr": pe, "listenPort": publicPort,
 	}
 }

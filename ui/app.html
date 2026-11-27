@@ -78,6 +78,10 @@
           </div>
         </div>
       </div>
+      <div class="card nb-card">
+        <div><h3>Nearby devices</h3><p class="muted" id="nb-me">Other ShareMile apps on this Wi-Fi can find this PC and send you files. You choose whether to accept each one.</p></div>
+        <label class="check"><input type="checkbox" id="nb-vis" checked><span></span>Let nearby devices find this PC</label>
+      </div>
       <div class="card" id="rc-pick" hidden>
         <div class="share-title"><div class="rc-head"><h3 id="rc-name"></h3><span class="muted tnum" id="rc-sum"></span><span class="pill ok" id="rc-by" hidden></span></div>
           <div class="row gap"><button class="btn small chat-btn" id="rc-chat" title="Chat with the sender"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat with sender<span class="badge"></span></button><button class="btn icon x" id="rc-close" title="Close this file list" aria-label="Close this file list">✕</button></div></div>
@@ -274,6 +278,32 @@
     <div class="row gap"><div class="pathin grow"><input id="relink-url" placeholder="http://…/s/…" spellcheck="false" autocomplete="off"></div><button type="button" class="btn" data-paste="relink-url">Paste</button></div>
     <div class="modal-actions"><button type="button" class="btn" id="relink-cancel">Cancel</button><button class="btn primary" id="relink-go">Continue download</button></div>
   </form>
+</div>
+<div class="welcome" id="nearby" hidden>
+  <div class="welcome-in modal-in nearby-in" role="dialog" aria-modal="true" aria-labelledby="nb-h" tabindex="-1">
+    <h2 id="nb-h">Send to a nearby device</h2>
+    <p id="nb-sub"></p>
+    <div class="nb-list" id="nb-list" aria-live="polite"></div>
+    <p class="muted nb-foot">Shows PCs on the same Wi-Fi or network with ShareMile open. Files go straight over your network, not the internet. For a phone, use the QR code instead.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="nb-scan">Scan again</button>
+      <span class="vspace"></span>
+      <button type="button" class="btn" id="nb-close">Close</button>
+    </div>
+  </div>
+</div>
+<div class="welcome" id="offer" hidden>
+  <div class="welcome-in modal-in offer-in" role="dialog" aria-modal="true" aria-labelledby="of-h" tabindex="-1">
+    <h2 id="of-h">Incoming files</h2>
+    <p id="of-sub"></p>
+    <div class="of-box"><b id="of-name"></b><span class="muted tnum" id="of-sum"></span></div>
+    <p class="muted" id="of-dir"></p>
+    <div class="modal-actions">
+      <span class="vspace"></span>
+      <button type="button" class="btn" id="of-no">Decline</button>
+      <button type="button" class="btn primary" id="of-yes">Accept</button>
+    </div>
+  </div>
 </div>
 <div class="welcome" id="verify" hidden>
   <div class="welcome-in modal-in verify-in" role="dialog" aria-modal="true" aria-labelledby="verify-h" tabindex="-1">

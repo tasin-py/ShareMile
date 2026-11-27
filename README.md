@@ -116,6 +116,7 @@ flowchart LR
 - **Sort file lists** by name, size or date modified.
 - **Chat**: talk to the people downloading your Quick Share (from the app or right in their browser, phones included), or use a **group chat** inside a Share Network. **@mentions** with name suggestions, **reply** to a specific message, and **reactions** (👍 ❤️ 😂 😮 😢 🙏 🔥 🎉). Messages stay on the sharer's / host's PC; nothing goes through an outside server. When someone **@mentions you**, a soft chime plays (unless you're already looking at that chat); ordinary messages stay silent.
 - **Built-in downloader**: paste a link on **Receive**, tick files, press **Download**. 8 parallel connections per download (like IDM), folders kept, pause/resume, and it picks up where it stopped even after a crash or restart. A **⋮** menu on each download has **Set location…** (point it at files you already have and it continues), **Check files…** (compare with the sender, then download missing files or remove extra ones) and **New download link…** (paste the sender's new link after they restart). If the sender restarts and shares the same files again under a new link, opening that link continues the old download; files you already have are never fetched twice.
+- **Nearby devices, like SHAREit**: press **Send to device** on a share and ShareMile scans your Wi-Fi or LAN for other PCs with ShareMile open (Windows and Linux). Pick one, they tap **Accept**, and the files download straight over your network at full LAN speed, with resume. Nothing goes through the internet, and each PC chooses whether nearby devices can find it.
 - **Receive from phone**: press **Receive from phone** on the Receive page and a QR code appears. Scan it with any phone and send photos, videos or any files straight to this PC, over mobile data or Wi-Fi, with no app on the phone. Big files go up in pieces, so they get through the relay and carry on where they stopped if the connection drops or the page reloads.
 - **Download with IDM** (shown when IDM is installed; opens IDM's normal download window for each file) or **Browser download**, if you prefer.
 - **New link / New code**: retire a link or a network code in one click. Anyone holding the old one loses access.
@@ -208,6 +209,13 @@ Each download in the list has **Pause / Resume** and a **⋮** menu:
 | **Cancel download** / **Remove from list** | Cancel deletes the unfinished parts; on a finished download it only clears it from the list. |
 
 Downloads use 8 connections at once and survive anything: pause and resume, a dropped connection, closing the app, even a crash. If the sender's link changes (their app or PC restarted and they shared the files again), use **New download link…**, or just open the new link on **Receive**: the old download continues where it stopped. Files already finished are kept, never downloaded twice.
+
+#### Send to a nearby device (same Wi-Fi or LAN)
+1. Share files on **Quick Share** as usual, then press **Send to device** on the share.
+2. ShareMile scans your network for about two seconds and lists every PC with ShareMile open (it keeps scanning while the window is open). Press **Send** next to one.
+3. That PC shows **Incoming files** with your name, what you're sending and its size. When they press **Accept**, the files download into their download folder over your network, using the built-in downloader (8 connections, resume, file check). You see **Accepted** or **Declined**.
+
+To be found, ShareMile must be open on the other PC with **Let nearby devices find this PC** on (on its **Receive** page; on by default). Turn it off and this PC doesn't answer scans or take offers. Scans and offers only work inside your local network: they are refused when they come through the relay. If a PC doesn't show up, check that both are on the same network and that the firewall lets ShareMile in (*Settings*).
 
 #### Receive from phone
 1. On **Receive**, press **Receive from phone**. A QR code appears (the **Relay** link, which works on mobile data too; **Same Wi-Fi / LAN** is faster when the phone is on your Wi-Fi).
@@ -312,22 +320,26 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.8.0
+.\build.ps1 -Version 1.9.0
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.8.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.9.0\`. Each version gets its own folder and older ones are never overwritten.
 
 **Linux** (on Ubuntu 24.04 or newer; needs `gcc`, `pkg-config`, `libgtk-3-dev` and `libwebkit2gtk-4.1-dev`):
 
 ```sh
-packaging/linux/build-linux.sh 1.8.0
+packaging/linux/build-linux.sh 1.9.0
 ```
-Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v1.8.0/`.
+Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v1.9.0/`.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v1.9.0 (2026-11-27)
+- New: Nearby devices, like SHAREit. Send to device on a share scans your Wi-Fi or LAN for other PCs with ShareMile open (Windows and Linux) and offers them the files. They see Incoming files and press Accept or Decline; accepted files download straight over your network with the built-in downloader, and you see the answer.
+- New: Let nearby devices find this PC on the Receive page (on by default). Scans and offers are only answered from your local network, never through the relay.
+
 v1.8.0 (2026-11-27)
 - New: ShareMile for Linux, with every feature of the Windows app: Quick Share, Share Network, the built-in downloader, Receive from phone, chat, the relay, BDIX Transfer, themes and one-click updates. Download ShareMile-linux-amd64.tar.gz and run ./install.sh. It installs the libraries it needs, adds ShareMile to the app menu and can add a desktop icon, pin it to the dock and launch it.
 - New: one-command install on Linux: curl -fsSL https://raw.githubusercontent.com/tasin-py/ShareMile/main/get.sh | sh

@@ -181,7 +181,7 @@ function renderShares(list) {
       c.innerHTML = `<div class="share">
         <div class="qr"><img alt="QR code"></div>
         <div class="share-body">
-          <div class="share-title"><h3></h3><div class="row gap"><button class="btn small chat-btn" data-act="chat" title="Chat with people who open this link"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat<span class="badge"></span></button><button class="btn small" data-act="renew" title="Make a new link. The current one stops working">New link</button><button class="btn small danger" data-act="stop">Stop sharing</button></div></div>
+          <div class="share-title"><h3></h3><div class="row gap"><button class="btn small chat-btn" data-act="chat" title="Chat with people who open this link"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>Chat<span class="badge"></span></button><button class="btn small" data-act="nearby" title="Send to a PC on the same Wi-Fi or network">Send to device</button><button class="btn small" data-act="renew" title="Make a new link. The current one stops working">New link</button><button class="btn small danger" data-act="stop">Stop sharing</button></div></div>
           <div class="seg"></div>
           <div class="link"><input readonly spellcheck="false"><button class="btn" data-act="copy">Copy link</button><button class="btn" data-act="open" title="Open in browser">Open</button></div>
           <div class="note"></div>
@@ -200,6 +200,7 @@ function renderShares(list) {
         busyBtn(e.currentTarget, async () => { await rpc('refreshShare', {id: s.id}); toast('New link ready. Send it again'); await refresh(); });
       };
       $('[data-act=chat]', c).onclick = () => openChat('share', s.id, 'Chat · ' + c._name, 'Everyone with the link', 'Sharer');
+      $('[data-act=nearby]', c).onclick = () => openNearby(s.id, c._name);
       $('[data-act=copy]', c).onclick = () => copy($('.link input', c).value);
       $('[data-act=open]', c).onclick = () => rpc('openURL', {url: $('.link input', c).value});
       box.insertBefore(c, box.children[idx] || null);
@@ -1267,6 +1268,107 @@ $('#ph-renew').onclick = e => {
 $('#ph-folder').onclick = () => rpc('phone', {op: 'folder'});
 $('#ph-copy').onclick = () => copy($('#ph-url').value);
 
+// ------------------------------------------------------------- nearby devices
+let nbShare = null, nbTimer = null, nbScanning = false;
+const nbSeen = {}; // offer id -> last status, for toasts
+const osName = o => ({windows: 'Windows', linux: 'Linux', darwin: 'Mac'}[o] || o || '');
+function openNearby(id, name) {
+  nbShare = id;
+  $('#nb-sub').innerHTML = `Send <b>${esc(name)}</b> to a PC on the same Wi-Fi or network. They'll be asked to accept.`;
+  $('#nb-list').innerHTML = '';
+  $('#nearby').hidden = false;
+  $('.nearby-in').focus();
+  scanNearby();
+  clearInterval(nbTimer);
+  nbTimer = setInterval(() => { if (!nbScanning) scanNearby(); }, 8000);
+}
+function closeNearby() {
+  $('#nearby').hidden = true; nbShare = null;
+  clearInterval(nbTimer); nbTimer = null;
+}
+async function scanNearby() {
+  const b = $('#nb-scan');
+  nbScanning = true;
+  b.disabled = true;
+  b.innerHTML = '<span class="spin"></span>Scanning…';
+  if (!$('#nb-list').children.length) $('#nb-list').innerHTML = '<div class="nb-empty"><span class="spin"></span>Looking for devices…</div>';
+  try { S.nearby.devices = await rpc('nearbyScan'); } catch (e) { /* shown by rpc */ }
+  nbScanning = false;
+  b.disabled = false;
+  b.textContent = 'Scan again';
+  renderNearbyList();
+}
+function renderNearbyList() {
+  if (!nbShare || !S || !S.nearby) return;
+  const devs = S.nearby.devices || [], sent = (S.nearby.sent || []).filter(x => x.share === nbShare);
+  const box = $('#nb-list');
+  if (!devs.length) {
+    if (!nbScanning) box.innerHTML = '<div class="nb-empty">No devices found yet. Open ShareMile on the other PC, make sure it\'s on the same Wi-Fi, and check that <b>Let nearby devices find this PC</b> is on there (on its Receive page).</div>';
+    return;
+  }
+  const label = {waiting: 'Waiting for them to accept…', accepted: 'Accepted. Sending now', declined: 'Declined', failed: 'No answer'};
+  const k = devs.map(d => d.id + d.ip).join('|') + '#' + sent.map(x => x.id + x.status).join('|');
+  if (box.dataset.k === k) return;
+  box.dataset.k = k;
+  box.innerHTML = devs.map((d, i) => {
+    const last = sent.filter(x => x.devId === d.id).pop();
+    const st = last ? `<span class="nb-st ${last.status}">${label[last.status] || ''}</span>` : '';
+    const btn = last && last.status === 'waiting' ? '' : `<button class="btn ${last ? '' : 'primary'} small" data-i="${i}">${last ? 'Send again' : 'Send'}</button>`;
+    return `<div class="nb-dev"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><div class="nb-who"><b>${esc(d.name)}</b><span class="muted">${esc(osName(d.os))} · ${esc(d.ip)}</span></div>${st}${btn}</div>`;
+  }).join('');
+  $$('[data-i]', box).forEach(b => b.onclick = () => busyBtn(b, async () => {
+    const d = devs[+b.dataset.i];
+    await rpc('nearbySend', {id: nbShare, code: d.id});
+    toast('Sent to ' + d.name + '. Waiting for them to accept');
+    await refresh();
+  }));
+}
+let ofCur = null;
+function renderNearby(n) {
+  if (document.activeElement !== $('#nb-vis')) $('#nb-vis').checked = !!n.visible;
+  $('#nb-me').innerHTML = n.visible
+    ? `Other ShareMile apps on this Wi-Fi can find this PC as <b>${esc(n.me || '')}</b> and send you files. You choose whether to accept each one.`
+    : 'This PC is hidden. Nearby devices can\'t find it or send you files.';
+  for (const x of n.sent || []) {
+    if (nbSeen[x.id] && nbSeen[x.id] !== x.status) {
+      if (x.status === 'accepted') toast(x.device + ' accepted. Sending now');
+      if (x.status === 'declined') toast(x.device + ' declined the files');
+    }
+    nbSeen[x.id] = x.status;
+  }
+  renderNearbyList();
+  const offers = n.offers || [];
+  if (ofCur && !offers.some(o => o.id === ofCur)) { ofCur = null; $('#offer').hidden = true; }
+  if (!ofCur && offers.length) {
+    const o = offers[0];
+    ofCur = o.id;
+    $('#of-sub').innerHTML = `<b>${esc(o.from.name)}</b> (${esc(osName(o.from.os))}, ${esc(o.from.ip)}) wants to send you:`;
+    $('#of-name').textContent = o.name;
+    $('#of-sum').textContent = `${o.count.toLocaleString()} ${o.count === 1 ? 'file' : 'files'} · ${fmtBytes(o.total)}`;
+    $('#of-dir').textContent = 'They go into your download folder: ' + (S.config.downloadDir || '');
+    $('#offer').hidden = false;
+    $('#of-yes').focus();
+  }
+}
+async function answerOffer(yes, btn) {
+  const id = ofCur;
+  if (!id) return;
+  await busyBtn(btn, async () => {
+    await rpc('nearbyAnswer', {id, on: yes});
+    ofCur = null;
+    $('#offer').hidden = true;
+    if (yes) { toast('Downloading. See it on Receive'); const p = $('[data-page="receive"]'); if (p) p.click(); }
+    await refresh();
+  });
+}
+$('#of-yes').onclick = e => answerOffer(true, e.currentTarget);
+$('#of-no').onclick = e => answerOffer(false, e.currentTarget);
+$('#offer').addEventListener('keydown', e => { if (e.key === 'Escape') $('#of-no').click(); });
+$('#nb-scan').onclick = () => { if (!nbScanning) scanNearby(); };
+$('#nb-close').onclick = closeNearby;
+$('#nearby').addEventListener('keydown', e => { if (e.key === 'Escape') closeNearby(); });
+$('#nb-vis').onchange = async e => { await rpc('nearbyVisible', {on: e.target.checked}); await refresh(); };
+
 // ------------------------------------------------------------- polling
 let timer = null;
 async function refresh() {
@@ -1278,6 +1380,7 @@ async function refresh() {
     renderJoined(S.joined || []);
     renderReceives(S.receives || []);
     renderPhone(S.phone || {});
+    renderNearby(S.nearby || {});
     renderBookmarks(S.bookmarks || []);
     syncBmButton();
     renderSettings(S);

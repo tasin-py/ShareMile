@@ -119,6 +119,7 @@ func main() {
 		startJoined(j)
 	}
 	go netWatcher()
+	startNearby()
 	go checkFirewallRule()
 	if err := startControlServer(); err != nil {
 		messageBox(appName, "Couldn't start: "+err.Error(), 0x10)

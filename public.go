@@ -77,6 +77,7 @@ func startPublicServer(port int) error {
 	mux.HandleFunc("/s/", handleShare)
 	mux.HandleFunc("/n/", handleNetwork)
 	mux.HandleFunc("/p/", handlePhone)
+	mux.HandleFunc("/nearby/", handleNearby)
 	mux.HandleFunc("/assets/", handleAssets)
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		b, _ := assetFS.ReadFile("assets/favicon.png")
