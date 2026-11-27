@@ -25,7 +25,7 @@ func init() {
 	runtime.LockOSThread()
 }
 
-func isDarkTheme(t string) bool { return t != "light" && t != "paper" }
+func isDarkTheme(t string) bool { return t != "light" && t != "paper" && t != "xp" }
 
 func quitApp() {
 	if headless || !guiActive() {

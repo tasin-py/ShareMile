@@ -138,6 +138,16 @@ func hookClose(hwnd uintptr, onClose func() bool) {
 		if msg == 0x0010 && !onClose() { // WM_CLOSE
 			return 0
 		}
+		if msg == 0x0024 { // WM_GETMINMAXINFO: the XP theme maximizes to the work area
+			r, _, _ := procCallWinProc.Call(oldWndProc, h, msg, wp, lp)
+			chromeMinMax(h, lp)
+			return r
+		}
+		if msg == 0x0083 { // WM_NCCALCSIZE: the XP theme's own title bar
+			if r, ok := chromeNCCalcSize(h, wp, lp); ok {
+				return r
+			}
+		}
 		switch {
 		case msg == wmTray:
 			onTrayMessage(lp)

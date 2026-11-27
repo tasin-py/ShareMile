@@ -128,7 +128,8 @@ flowchart LR
 - **Refresh** on a joined network asks the host to recheck its folders right away; hosts also pick up added, changed or deleted files by themselves.
 - **Files back to you**: let people drop files back to you from the share page.
 - **Live stats**: visitors, bytes sent, live speed.
-- **7 themes**: Pitch Black, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper, with refined colours, soft depth and display headings. Text stays readable in all of them.
+- **8 themes**: Default Dark, **Windows XP**, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper. Text stays readable in all of them.
+- **Windows XP theme**: a flat, 2D Classic XP look. It has the blue title bar with the app's name and version, XP minimize, maximize and close buttons, the blue task pane, 23px push buttons, check boxes, and the green block progress bar with an XP marquee while loading. There are no gradients and no dark pixels at the window's edges.
 - **One-click updates** from Settings or the About page, plus Buy Me a Coffee.
 - **Lightweight**: a single ~9 MB executable, about 25 MB of RAM for the sharing engine, and near-zero CPU when idle.
 
@@ -320,22 +321,28 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 1.9.0
+.\build.ps1 -Version 2.0.0
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v1.9.0\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v2.0.0\`. Each version gets its own folder and older ones are never overwritten.
 
 **Linux** (on Ubuntu 24.04 or newer; needs `gcc`, `pkg-config`, `libgtk-3-dev` and `libwebkit2gtk-4.1-dev`):
 
 ```sh
-packaging/linux/build-linux.sh 1.9.0
+packaging/linux/build-linux.sh 2.0.0
 ```
-Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v1.9.0/`.
+Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v2.0.0/`.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v2.0.0 (2026-11-28)
+- New: Windows XP theme (Settings, Theme, second choice). It is a flat, 2D Classic XP look: the blue title bar shows ShareMile and its version, with XP minimize, maximize and close buttons, and the window has a blue frame and square corners. You also get the blue task pane, beige group boxes, small sharp-cornered push buttons, check boxes and XP tabs. Progress is a green block bar, and anything loading shows an XP marquee. The title bar drags, snaps, double-click maximizes, and maximize stops at the taskbar.
+- On Linux the Windows XP theme uses the system title bar, and everything inside the window is the same.
+- Changed: the dark default theme is now called Default Dark.
+- Changed: the download bar is one solid colour in every other theme (it was a two-colour gradient).
+
 v1.9.0 (2026-11-27)
 - New: Nearby devices, like SHAREit. Send to device on a share scans your Wi-Fi or LAN for other PCs with ShareMile open (Windows and Linux) and offers them the files. They see Incoming files and press Accept or Decline; accepted files download straight over your network with the built-in downloader, and you see the answer.
 - New: Let nearby devices find this PC on the Receive page (on by default). Scans and offers are only answered from your local network, never through the relay.
@@ -449,7 +456,7 @@ v1.0.0 (2026-11-21)
 - Quick Share: link + QR code, browser page with previews, folder/selection/all ZIP downloads, optional uploads back to you.
 - Share Network: secret-code private swarm with multi-source, hash-verified, resumable downloads.
 - Internet-first links: UPnP port opening, IPv6, CGNAT detection, automatic Cloudflare relay fallback.
-- 7 themes, one-click updates, Buy Me a Coffee, installer with taskbar/Start/Desktop/firewall options.
+- 8 themes (including Windows XP), one-click updates, Buy Me a Coffee, installer with taskbar/Start/Desktop/firewall options.
 ```
 
 ## Credits

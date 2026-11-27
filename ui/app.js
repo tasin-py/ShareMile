@@ -731,7 +731,7 @@ function renderReceives(list) {
     const checking = t.state === 'downloading' && t.chkN > 0;
     const st = checking ? ['Checking files', ''] : {downloading: ['Downloading', 'ok'], paused: ['Paused', ''], done: ['Done ✓', 'ok'], error: ['Stopped', 'bad']}[t.state] || [t.state, ''];
     f('state').textContent = st[0]; f('state').className = 'pill ' + st[1];
-    $('.bar i', c).style.transform = 'scaleX(' + (t.total ? Math.min(1, t.got / t.total) : 1).toFixed(4) + ')';
+    $('.bar i', c).style.setProperty('--p', (t.total ? Math.min(1, t.got / t.total) : 1).toFixed(4));
     f('got').textContent = fmtBytes(t.got); f('total').textContent = fmtBytes(t.total);
     f('files').textContent = `${t.doneCount}/${t.count}`;
     f('by').hidden = !t.by; $('b', f('by')).textContent = t.by || '';
@@ -947,7 +947,7 @@ function renderJoined(list) {
         const label = {queued: 'Queued', preparing: 'Preparing…', downloading: `${pct.toFixed(1)}% · ${fmtSpeed(t.speed)} · ${t.sources} source${t.sources > 1 ? 's' : ''}`, paused: `Paused · ${pct.toFixed(1)}%`, done: 'Done · ' + fmtBytes(t.file.size), error: 'Failed', cancelled: 'Cancelled'}[t.state] || t.state;
         $('.meta', el).textContent = label;
         $('.bar', el).classList.toggle('indet', t.state === 'preparing' || t.state === 'queued');
-        $('.bar i', el).style.transform = 'scaleX(' + (pct / 100) + ')';
+        $('.bar i', el).style.setProperty('--p', (pct / 100).toFixed(4));
         const running = t.state === 'downloading' || t.state === 'preparing' || t.state === 'queued';
         el._running = running; el._state = t.state; el._path = t.path;
         const tg = $('[data-act=toggle]', el);
@@ -969,7 +969,8 @@ function visibleFiles(j) {
 
 // ------------------------------------------------------------- settings
 const THEMES = [
-  ['pitch-black', 'Pitch Black', '#000', '#45e0a8', '#f5f5f4'],
+  ['pitch-black', 'Default Dark', '#000', '#45e0a8', '#f5f5f4'],
+  ['xp', 'Windows XP', 'linear-gradient(180deg,#0a5bd8 0 14px,#ece9d8 14px)', '#316ac5', '#2ca02c'],
   ['midnight-blue', 'Midnight Blue', '#060a16', '#86adff', '#5fd4e8'],
   ['graphite', 'Graphite', '#141416', '#ece7dc', '#a8a39a'],
   ['noir-gold', 'Noir Gold', '#0b0a08', '#dcb56a', '#f0dcae'],
@@ -977,12 +978,40 @@ const THEMES = [
   ['light', 'Light', '#f5f5f2', '#0b7a5c', '#121316'],
   ['paper', 'Paper', '#f4eee2', '#96470f', '#1e1a13'],
 ];
+const LIGHT_THEMES = ['light', 'paper', 'xp'];
 $('#themes').innerHTML = THEMES.map(([id, n, bg, a, b]) => `<button class="theme" data-theme-id="${id}"><span class="sw" style="background:${bg}"><i style="background:${a}"></i><i style="background:${b}"></i></span><span class="tn">${n}</span></button>`).join('');
 $$('[data-theme-id]').forEach(b => b.onclick = async () => { applyTheme(b.dataset.themeId); await rpc('setConfig', {theme: b.dataset.themeId}); });
+// Windows XP theme on Windows: the window has no system title bar, so the page draws the XP one.
+const xpbar = $('#xpbar');
+function syncChrome(t) {
+  const on = t === 'xp' && typeof window.smWin === 'function';
+  xpbar.hidden = !on;
+  document.body.classList.toggle('xp-chrome', on);
+  if (on) syncZoom();
+}
+function syncZoom() {
+  if (window.smWinMax) window.smWinMax().then(z => {
+    xpbar.classList.toggle('zoomed', !!z);
+    const b = $('[data-win=max]', xpbar);
+    b.title = z ? 'Restore Down' : 'Maximize'; b.setAttribute('aria-label', b.title);
+  }).catch(() => {});
+}
+xpbar.addEventListener('mousedown', e => {
+  if (e.button !== 0 || e.target.closest('.xpcap')) return;
+  e.preventDefault();
+  window.smWin(e.detail >= 2 ? 'max' : 'drag'); // double-click maximizes, like a real title bar
+});
+$$('[data-win]', xpbar).forEach(b => b.onclick = () => window.smWin(b.dataset.win));
+let zoomT = 0;
+addEventListener('resize', () => { if (xpbar.hidden) return; clearTimeout(zoomT); zoomT = setTimeout(syncZoom, 120); });
+addEventListener('blur', () => document.body.classList.add('win-idle'));
+addEventListener('focus', () => document.body.classList.remove('win-idle'));
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
+  syncChrome(t);
   $$('[data-theme-id]').forEach(b => b.classList.toggle('on', b.dataset.themeId === t));
-  if (window.smSetDarkTitle) window.smSetDarkTitle(!(t === 'light' || t === 'paper'));
+  if (window.smSetTheme) window.smSetTheme(t); // Windows: dark or light title bar, and the blue XP frame
+  else if (window.smSetDarkTitle) window.smSetDarkTitle(!LIGHT_THEMES.includes(t));
 }
 
 $('#set-linkmode').onchange = e => rpc('setConfig', {linkMode: e.target.value}).then(refresh);
@@ -1249,7 +1278,7 @@ function renderPhone(p) {
   let h = '';
   for (const u of act) {
     const f = u.size ? u.have / u.size : 1;
-    h += `<div class="ph-up"><div class="row"><span class="nm">${esc(u.name)} <span class="muted">from ${esc(u.device)}</span></span><span class="num">${fmtBytes(u.have)} of ${fmtBytes(u.size)} · ${fmtSpeed(u.speed)}</span></div><div class="bar"><i style="transform:scaleX(${f.toFixed(4)})"></i></div></div>`;
+    h += `<div class="ph-up"><div class="row"><span class="nm">${esc(u.name)} <span class="muted">from ${esc(u.device)}</span></span><span class="num">${fmtBytes(u.have)} of ${fmtBytes(u.size)} · ${fmtSpeed(u.speed)}</span></div><div class="bar"><i style="--p:${f.toFixed(4)}"></i></div></div>`;
   }
   if (got.length) {
     h += '<b>Received</b>' + got.slice(0, 8).map((g, i) => `<div class="ph-got"><a href="#" data-i="${i}">${esc(g.name)}</a><span>${fmtBytes(g.size)} · ${esc(g.device)}</span></div>`).join('');
@@ -1375,6 +1404,7 @@ async function refresh() {
   try {
     S = await rpc('state');
     $('#ab-ver').textContent = S.version;
+    $('.xpbar-t').textContent = 'ShareMile ' + S.version; // the XP title bar: name and version, like an XP window
     renderShares(S.shares || []);
     renderHosted(S.hosted || []);
     renderJoined(S.joined || []);

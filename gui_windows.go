@@ -30,6 +30,32 @@ func setDarkTitle(dark bool) {
 	procDwmSetAt.Call(mainHwnd, 20, uintptr(unsafe.Pointer(&v)), 4)
 }
 
+// setWinTheme matches the window frame to the theme: a dark or light title
+// bar, and for Windows XP the flat XP blue title bar and frame with white title
+// text and square corners, so no dark edge is left around the window.
+// Windows 10 ignores the colours and corners and keeps its own frame.
+func setWinTheme(theme string) {
+	setDarkTitle(isDarkTheme(theme))
+	setXPChrome(theme == "xp")
+	if mainHwnd == 0 {
+		return
+	}
+	const def = 0xFFFFFFFF // DWMWA_COLOR_DEFAULT
+	border, caption, text := uint32(def), uint32(def), uint32(def)
+	corner := uint32(0) // DWMWCP_DEFAULT: Windows 11 rounds the corners
+	if theme == "xp" {  // COLORREF is 0x00BBGGRR
+		border, caption, text = 0x00D93108, 0x00D85B0A, 0x00FFFFFF
+		corner = 1 // DWMWCP_DONOTROUND: square like XP, no rounded edge showing the desktop
+	}
+	for _, a := range []struct {
+		id uintptr
+		v  uint32
+	}{{34, border}, {35, caption}, {36, text}, {33, corner}} {
+		v := a.v
+		procDwmSetAt.Call(mainHwnd, a.id, uintptr(unsafe.Pointer(&v)), 4)
+	}
+}
+
 // guiActive tells whether the app window exists (not headless).
 func guiActive() bool { return mainHwnd != 0 }
 
@@ -84,10 +110,13 @@ func runGUI() {
 	defer wv.Destroy()
 	mainHwnd = uintptr(wv.Window())
 	wv.SetSize(780, 560, webview2.HintMin)
-	setDarkTitle(isDarkTheme(cfg.Theme))
 	wv.Bind("smSetDarkTitle", func(dark bool) error { setDarkTitle(dark); return nil })
+	wv.Bind("smSetTheme", func(theme string) error { setWinTheme(theme); return nil })
+	wv.Bind("smWin", func(op string) error { winOp(op); return nil })
+	wv.Bind("smWinMax", func() bool { return winMaximized() })
 	installDropHandler(wv)
 	hookClose(mainHwnd, onWindowClose)
+	setWinTheme(cfg.Theme) // after hookClose, which handles the XP title bar's frame
 	syncTray()
 	wv.Navigate(ctrlURL)
 	wv.Run()
