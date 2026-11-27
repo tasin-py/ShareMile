@@ -59,6 +59,9 @@ func startControlServer() error {
 			b, err = webFS.ReadFile("web/" + rest)
 		default:
 			b, err = uiFS.ReadFile("ui/" + rest)
+			if err == nil && rest == "app.html" {
+				b = themedPage(b)
+			}
 		}
 		if err != nil {
 			http.NotFound(w, r)

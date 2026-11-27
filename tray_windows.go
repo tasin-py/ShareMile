@@ -179,6 +179,7 @@ func showMainWindow() {
 		return
 	}
 	setWebViewVisible(true)
+	uncloak()                        // asked for the window before the page finished its first frame
 	procShowWindow.Call(mainHwnd, 5) // SW_SHOW
 	if r, _, _ := procIsIconic.Call(mainHwnd); r != 0 {
 		procShowWindow.Call(mainHwnd, 9) // SW_RESTORE

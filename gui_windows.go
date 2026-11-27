@@ -90,6 +90,11 @@ func runGUI() {
 	if os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") == "" {
 		os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu --disable-gpu-compositing --renderer-process-limit=1 --disable-extensions --disable-background-networking --disable-component-update --autoplay-policy=no-user-gesture-required --disable-features=msSmartScreenProtection,Translate,AutofillServerCommunication,msEdgeShopping")
 	}
+	// Paint the saved theme's colour until the page loads, not white or black.
+	if bg, ok := themeBG[savedTheme()]; ok {
+		os.Setenv("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "FF"+bg)
+	}
+	startCloak() // the window stays invisible until the page has drawn in the saved theme
 	wv = webview2.NewWithOptions(webview2.WebViewOptions{
 		DataPath:  filepath.Join(appDataDir(), "webview"),
 		AutoFocus: true,
@@ -101,7 +106,9 @@ func runGUI() {
 			Center: true,
 		},
 	})
+	endCloakHook()
 	if wv == nil {
+		uncloak()
 		if messageBox(appName, "ShareMile needs the Microsoft Edge WebView2 Runtime, which is missing on this PC.\n\nOpen the download page now?", 0x34) == 6 {
 			openURL("https://go.microsoft.com/fwlink/p/?LinkId=2124703")
 		}
@@ -114,11 +121,13 @@ func runGUI() {
 	wv.Bind("smSetTheme", func(theme string) error { setWinTheme(theme); return nil })
 	wv.Bind("smWin", func(op string) error { winOp(op); return nil })
 	wv.Bind("smWinMax", func() bool { return winMaximized() })
+	wv.Bind("smShown", func() error { uncloak(); return nil })
 	installDropHandler(wv)
 	hookClose(mainHwnd, onWindowClose)
 	setWinTheme(cfg.Theme) // after hookClose, which handles the XP title bar's frame
 	syncTray()
 	wv.Navigate(ctrlURL)
+	time.AfterFunc(cloakFallbackT, func() { wv.Dispatch(uncloak) }) // show it even if the page never reports its first frame
 	wv.Run()
 	removeTray()
 }

@@ -1013,6 +1013,7 @@ function applyTheme(t) {
   if (window.smSetTheme) window.smSetTheme(t); // Windows: dark or light title bar, and the blue XP frame
   else if (window.smSetDarkTitle) window.smSetDarkTitle(!LIGHT_THEMES.includes(t));
 }
+applyTheme(document.documentElement.dataset.theme); // the page arrives in the saved theme: mark its tile and set up the title bar now
 
 $('#set-linkmode').onchange = e => rpc('setConfig', {linkMode: e.target.value}).then(refresh);
 $('#set-upnp').onchange = e => rpc('setConfig', {useUpnp: e.target.checked}).then(() => toast(e.target.checked ? 'UPnP on. Opening the port…' : 'UPnP off'));
@@ -1419,8 +1420,17 @@ async function refresh() {
 function loop() {
   clearTimeout(timer);
   if (document.hidden) return;
-  refresh().finally(() => { timer = setTimeout(loop, 1000); });
+  refresh().finally(() => { reportShown(); timer = setTimeout(loop, 1000); });
 }
+// The window stays invisible until the page has drawn itself (in the saved theme, with its first
+// state), so launching never flashes a blank or differently themed window.
+let shownSent = false;
+function reportShown() {
+  if (shownSent) return;
+  shownSent = true;
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (window.smShown) window.smShown(); }));
+}
+setTimeout(reportShown, 1500); // don't wait long for a slow first update
 document.addEventListener('visibilitychange', loop);
 loop();
 

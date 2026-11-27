@@ -321,22 +321,25 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 2.0.1
+.\build.ps1 -Version 2.0.2
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v2.0.1\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v2.0.2\`. Each version gets its own folder and older ones are never overwritten.
 
 **Linux** (on Ubuntu 24.04 or newer; needs `gcc`, `pkg-config`, `libgtk-3-dev` and `libwebkit2gtk-4.1-dev`):
 
 ```sh
-packaging/linux/build-linux.sh 2.0.1
+packaging/linux/build-linux.sh 2.0.2
 ```
-Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v2.0.1/`.
+Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v2.0.2/`.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v2.0.2 (2026-11-28)
+- Fixed: launching no longer flashes a blank window or the dark default theme before your theme. The app page arrives already in your saved theme (with the XP title bar for Windows XP). On Windows the window stays hidden until the page has drawn itself, then appears all at once. On Windows and Linux the background shows your theme's colour while the page loads.
+
 v2.0.1 (2026-11-28)
 - Fixed: on long pages such as Settings, the window could scroll past the end of the app into empty space. The hidden check box behind each switch now stays inside its own row.
 

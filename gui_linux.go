@@ -91,7 +91,7 @@ static void sm_set_icon(const void *png, int n) {
 	g_object_unref(l);
 }
 
-static void sm_create(const char *title, const char *dataDir, const char *base, int w, int h, int minw, int minh) {
+static void sm_create(const char *title, const char *dataDir, const char *base, const char *bg, int w, int h, int minw, int minh) {
 	smBase = g_strdup(base);
 	smWin = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title(GTK_WINDOW(smWin), title);
@@ -116,6 +116,8 @@ static void sm_create(const char *title, const char *dataDir, const char *base, 
 	webkit_settings_set_javascript_can_access_clipboard(s, TRUE);
 	webkit_settings_set_enable_developer_extras(s, FALSE);
 	webkit_settings_set_enable_back_forward_navigation_gestures(s, FALSE);
+	GdkRGBA bgc; // the saved theme's colour until the page paints, so launching never flashes white
+	if (gdk_rgba_parse(&bgc, bg)) webkit_web_view_set_background_color(smWeb, &bgc);
 
 	g_signal_connect(smWeb, "decide-policy", G_CALLBACK(sm_policy), NULL);
 	g_signal_connect(smWeb, "permission-request", G_CALLBACK(sm_permission), NULL);
@@ -364,8 +366,10 @@ func runGUI() {
 	defer C.free(unsafe.Pointer(cdir))
 	defer C.free(unsafe.Pointer(ctitle))
 	defer C.free(unsafe.Pointer(cbase))
+	cbg := C.CString("#" + themeBG[savedTheme()])
+	defer C.free(unsafe.Pointer(cbg))
 	C.sm_dark(boolInt(isDarkTheme(cfg.Theme)))
-	C.sm_create(ctitle, cdir, cbase, 1040, 720, 780, 560)
+	C.sm_create(ctitle, cdir, cbase, cbg, 1040, 720, 780, 560)
 	guiOn = true
 	startTray()
 	startDebugHook()
