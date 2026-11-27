@@ -147,6 +147,16 @@ Prefer no installer? Grab **[ShareMile-Portable.exe](https://github.com/tasin-py
 
 ### Linux
 
+Install with one command in a terminal:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tasin-py/ShareMile/main/get.sh | sh
+```
+
+It downloads the latest release, runs its `install.sh` (below) and cleans up after itself. Add `-s -- -y` after `sh` to accept every option without questions. Without curl, use `wget -qO- https://raw.githubusercontent.com/tasin-py/ShareMile/main/get.sh | sh`.
+
+Or install by hand:
+
 1. Download **[ShareMile-linux-amd64.tar.gz](https://github.com/tasin-py/ShareMile/releases/latest/download/ShareMile-linux-amd64.tar.gz)** and unpack it.
 2. In the `ShareMile` folder, run:
    ```sh
@@ -320,6 +330,7 @@ Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe
 ```text
 v1.8.0 (2026-11-27)
 - New: ShareMile for Linux, with every feature of the Windows app: Quick Share, Share Network, the built-in downloader, Receive from phone, chat, the relay, BDIX Transfer, themes and one-click updates. Download ShareMile-linux-amd64.tar.gz and run ./install.sh. It installs the libraries it needs, adds ShareMile to the app menu and can add a desktop icon, pin it to the dock and launch it.
+- New: one-command install on Linux: curl -fsSL https://raw.githubusercontent.com/tasin-py/ShareMile/main/get.sh | sh
 - Linux: tray icon with Open, Pause sharing and Exit; notifications; drag and drop from the file manager; your Downloads folder; Check files moves extra files to the Trash; firewalld and ufw are handled by Allow through the firewall. Tested on Arch, Ubuntu 24.04 and 26.04, Debian 13, Fedora 44, openSUSE Tumbleweed and Kali.
 - Windows and Linux share with each other both ways. Names Windows can't store are renamed safely when a Windows PC receives them: a:b.txt becomes a_b.txt, CON becomes CON_, and photo.jpg next to Photo.JPG becomes photo (2).jpg, so no file overwrites another.
 - Fix: files whose names start with a dot (.gitignore, .hidden.conf) keep the dot when a Windows PC receives them.
