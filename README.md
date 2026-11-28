@@ -268,17 +268,13 @@ No real IP? Nothing is missing: the relay covers you. Clicking **BDIX Transfer**
 ## Screenshots
 
 <details open>
-<summary><b>App</b></summary>
+<summary><b>App, in the Windows XP theme</b></summary>
 <br>
 <p align="center">
-  <img src="docs/screenshots/app-network-host.png" alt="Hosting a network" width="49%">
-  <img src="docs/screenshots/app-settings.png" alt="Settings" width="49%">
-  <img src="docs/screenshots/app-themes.png" alt="Theme picker: Default Dark, Windows XP, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper" width="49%">
-  <img src="docs/screenshots/app-about.png" alt="About with updates and Buy Me a Coffee" width="49%">
   <img src="docs/screenshots/app-xp.png" alt="Windows XP theme: Quick Share with the XP title bar and task pane" width="49%">
   <img src="docs/screenshots/app-xp-network.png" alt="Windows XP theme: hosting a network" width="49%">
-  <img src="docs/screenshots/app-light.png" alt="Light theme" width="49%">
-  <img src="docs/screenshots/app-midnight.png" alt="Midnight Blue theme" width="49%">
+  <img src="docs/screenshots/app-xp-settings.png" alt="Windows XP theme: Settings" width="49%">
+  <img src="docs/screenshots/app-xp-about.png" alt="Windows XP theme: About with updates and Buy Me a Coffee" width="49%">
 </p>
 </details>
 
