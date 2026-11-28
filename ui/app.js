@@ -195,9 +195,10 @@ function renderShares(list) {
           <div class="recv" hidden></div>
         </div></div>`;
       $('[data-act=stop]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('stopShare', {id: s.id}); await refresh(); });
-      $('[data-act=renew]', c).onclick = e => {
-        if (!confirm('Make a new link for this share?\n\nThe current link (and QR code) stops working right away. Anyone who still needs the files will need the new link.')) return;
-        busyBtn(e.currentTarget, async () => { await rpc('refreshShare', {id: s.id}); toast('New link ready. Send it again'); await refresh(); });
+      $('[data-act=renew]', c).onclick = async e => {
+        const b = e.currentTarget;
+        if (!await ask('Make a new link for this share?', 'The current link (and QR code) stops working right away. Anyone who still needs the files will need the new link.', 'New link')) return;
+        busyBtn(b, async () => { await rpc('refreshShare', {id: s.id}); toast('New link ready. Send it again'); await refresh(); });
       };
       $('[data-act=chat]', c).onclick = () => openChat('share', s.id, 'Chat · ' + c._name, 'Everyone with the link', 'Sharer');
       $('[data-act=nearby]', c).onclick = () => openNearby(s.id, c._name);
@@ -333,11 +334,12 @@ function renderHosted(list) {
       wireHostEditor(c);
       $('[data-act=pause]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('pauseHostNet', {id: h.id, on: !c._active}); await refresh(); });
       $('[data-act=rescan]', c).onclick = e => busyBtn(e.currentTarget, async () => { await rpc('rescanHostNet', {id: h.id}); toast('Files rescanned'); await refresh(); });
-      $('[data-act=renew]', c).onclick = e => {
-        if (!confirm('⚠ Make a new secret code?\n\nEveryone who has the current code, including members who already joined, will LOSE ACCESS to this network. Only people you send the new code to can connect again.\n\nContinue?')) return;
-        busyBtn(e.currentTarget, async () => { await rpc('renewHostNet', {id: c.dataset.id}); toast('New code ready. Send it to the members you want to keep'); await refresh(); });
+      $('[data-act=renew]', c).onclick = async e => {
+        const b = e.currentTarget;
+        if (!await ask('Make a new secret code?', 'Everyone who has the current code, including members who already joined, will LOSE ACCESS to this network. Only people you send the new code to can connect again.', 'New code', true)) return;
+        busyBtn(b, async () => { await rpc('renewHostNet', {id: c.dataset.id}); toast('New code ready. Send it to the members you want to keep'); await refresh(); });
       };
-      $('[data-act=del]', c).onclick = e => { if (confirm('Delete this network? Members will lose access and the code stops working.')) busyBtn(e.currentTarget, async () => { await rpc('removeHostNet', {id: h.id}); await refresh(); }); };
+      $('[data-act=del]', c).onclick = async e => { const b = e.currentTarget; if (await ask('Delete this network?', 'Members will lose access and the code stops working.', 'Delete network', true)) busyBtn(b, async () => { await rpc('removeHostNet', {id: h.id}); await refresh(); }); };
       box.insertBefore(c, box.children[idx] || null);
     }
     c._active = h.active;
@@ -413,10 +415,10 @@ function drawHostFiles(c) {
   if (e('roots').dataset.k !== rk) {
     e('roots').dataset.k = rk;
     e('roots').innerHTML = roots.map((p, i) => `<span class="chip" title="${esc(p)}"><span>${esc(p)}</span><button data-ri="${i}" aria-label="Remove from network" title="Remove from network">✕</button></span>`).join('');
-    $$('[data-ri]', e('roots')).forEach(b => b.onclick = () => {
+    $$('[data-ri]', e('roots')).forEach(b => b.onclick = async () => {
       if (roots.length === 1) { toast('A network needs at least one file or folder. Add another first, or delete the network', true); return; }
       const p = roots[+b.dataset.ri];
-      if (!confirm(`Remove this from the network?\n\n${p}\n\nThe files stay on your PC. Members can no longer download them.`)) return;
+      if (!await ask('Remove this from the network?', `${p}\n\nThe files stay on your PC. Members can no longer download them.`, 'Remove')) return;
       busyBtn(b, async () => { await rpc('editHostNet', {id: c.dataset.id, setRoots: true, paths: roots.filter(x => x !== p)}); toast('Removed from the network'); c._ek = ''; await refresh(); });
     });
   }
@@ -647,15 +649,16 @@ $('#verify-missing').onclick = e => busyBtn(e.currentTarget, async () => {
   toast(parts.join(', ') || 'Nothing to fix');
   await refresh();
 });
-$('#verify-extra').onclick = e => {
+$('#verify-extra').onclick = async e => {
+  const b = e.currentTarget;
   const r = verifyRes;
   const bin = S.trash || 'Recycle Bin';
-  if (!r || !confirm(`Move ${plural(r.extraCount, 'extra file', 'extra files')} (${fmtBytes(r.extraBytes)}) to the ${bin}?`)) return;
-  busyBtn(e.currentTarget, async () => {
+  if (!r || !await ask(`Move ${plural(r.extraCount, 'extra file', 'extra files')} to the ${bin}?`, `${fmtBytes(r.extraBytes)} in all.`, 'Move')) return;
+  busyBtn(b, async () => {
     try {
       const n = await rpc('recvRemoveExtra', {id: verifyId});
       if (n.removed) toast('Moved ' + plural(n.removed, 'file', 'files') + ' to the ' + bin);
-      if (n.tooBig && confirm(`${plural(n.tooBig, 'extra file is', 'extra files are')} ${S.os === 'linux' ? "can't go to the Trash on that drive" : 'too big for the Recycle Bin'} (${fmtBytes(n.tooBigBytes)}). Delete ${n.tooBig === 1 ? 'it' : 'them'} permanently? This can't be undone.`)) {
+      if (n.tooBig && await ask(`Delete ${n.tooBig === 1 ? 'it' : 'them'} permanently?`, `${plural(n.tooBig, 'extra file is', 'extra files are')} ${S.os === 'linux' ? "can't go to the Trash on that drive" : 'too big for the Recycle Bin'} (${fmtBytes(n.tooBigBytes)}). This can't be undone.`, 'Delete', true)) {
         const d = await rpc('recvRemoveExtra', {id: verifyId, on: true});
         toast('Deleted ' + plural(d.removed, 'file', 'files') + ' permanently');
       } else if (n.tooBig) {
@@ -716,7 +719,7 @@ function renderReceives(list) {
           {label: 'New download link…', run: () => openRelink(c._t)},
           '-',
           {label: done ? 'Remove from list' : 'Cancel download', danger: true, run: async () => {
-            if (!done && !confirm('Cancel this download and delete the unfinished parts?')) return;
+            if (!done && !await ask('Cancel this download?', 'The unfinished parts are deleted from your PC.', 'Cancel download', true, 'Keep downloading')) return;
             try { await rpc('recvRemove', {id: t.id, on: !done}); await refresh(); } catch (err) { toast(err.message, true); }
           }},
         ]);
@@ -846,7 +849,7 @@ function renderJoined(list) {
         </div>
         <div class="row between" style="margin:14px 0 8px"><b>Downloads</b><div class="row gap"><button class="btn small" data-act="openfolder">Open folder</button><button class="btn small" data-act="clear">Clear finished</button></div></div>
         <div class="tasks"></div>`;
-      $('[data-act=leave]', c).onclick = e => { if (confirm('Leave this network?')) busyBtn(e.currentTarget, async () => { await rpc('leave', {id: j.id}); await refresh(); }); };
+      $('[data-act=leave]', c).onclick = async e => { const b = e.currentTarget; if (await ask('Leave this network?', 'You can join again with the code.', 'Leave')) busyBtn(b, async () => { await rpc('leave', {id: j.id}); await refresh(); }); };
       $('[data-act=chat]', c).onclick = () => openChat('joined', j.id, 'Group chat · ' + c._j.name, 'Host and members', 'Host');
       $('[data-act=refresh]', c).onclick = e => busyBtn(e.currentTarget, async () => {
         const before = (c._j.files || []).map(f => f.id).join(',');
@@ -934,10 +937,10 @@ function renderJoined(list) {
             await refresh();
           });
           $('[data-act=show]', el).onclick = () => rpc('openPath', {path: el._path});
-          $('[data-act=rm]', el).onclick = ev => {
-            const done = el._state === 'done';
-            if (!done && !confirm('Delete this download?\n\nThe unfinished file is deleted from your PC.')) return;
-            busyBtn(ev.currentTarget, async () => { await rpc('removeDl', {id: j.id, fileIds: [fid]}); toast(done ? 'Removed from the list. The file stays in your folder' : 'Download deleted'); await refresh(); });
+          $('[data-act=rm]', el).onclick = async ev => {
+            const b = ev.currentTarget, done = el._state === 'done';
+            if (!done && !await ask('Delete this download?', 'The unfinished file is deleted from your PC.', 'Delete', true)) return;
+            busyBtn(b, async () => { await rpc('removeDl', {id: j.id, fileIds: [fid]}); toast(done ? 'Removed from the list. The file stays in your folder' : 'Download deleted'); await refresh(); });
           };
           tb.append(el);
         }
@@ -1291,9 +1294,10 @@ function renderPhone(p) {
 }
 $('#ph-on').onclick = e => busyBtn(e.currentTarget, async () => { await rpc('phone', {on: true}); await refresh(); });
 $('#ph-stop').onclick = e => busyBtn(e.currentTarget, async () => { await rpc('phone', {on: false}); await refresh(); });
-$('#ph-renew').onclick = e => {
-  if (!confirm('Make a new QR code?\n\nThe current one stops working right away. Phones that saved the old link need to scan again.')) return;
-  busyBtn(e.currentTarget, async () => { await rpc('phone', {on: true, op: 'renew'}); $('#ph-seg').dataset.k = ''; toast('New QR code ready'); await refresh(); });
+$('#ph-renew').onclick = async e => {
+  const b = e.currentTarget;
+  if (!await ask('Make a new QR code?', 'The current one stops working right away. Phones that saved the old link need to scan again.', 'New QR code')) return;
+  busyBtn(b, async () => { await rpc('phone', {on: true, op: 'renew'}); $('#ph-seg').dataset.k = ''; toast('New QR code ready'); await refresh(); });
 };
 $('#ph-folder').onclick = () => rpc('phone', {op: 'folder'});
 $('#ph-copy').onclick = () => copy($('#ph-url').value);
@@ -1398,6 +1402,37 @@ $('#nb-scan').onclick = () => { if (!nbScanning) scanNearby(); };
 $('#nb-close').onclick = closeNearby;
 $('#nearby').addEventListener('keydown', e => { if (e.key === 'Escape') closeNearby(); });
 $('#nb-vis').onchange = async e => { await rpc('nearbyVisible', {on: e.target.checked}); await refresh(); };
+
+// ------------------------------------------------------------- questions
+// ShareMile asks in its own dialog, in the app's theme. The WebView's confirm() would title
+// the box with the page's address ("127.0.0.1 says").
+let askDone = null;
+function ask(title, body, okText = 'OK', danger = false, noText = 'Cancel') {
+  if (askDone) askDone(false);
+  $('#ask-h').textContent = title;
+  $('#ask-msg').textContent = body || '';
+  $('#ask-msg').hidden = !body;
+  const ok = $('#ask-ok'), no = $('#ask-no');
+  ok.textContent = okText; no.textContent = noText;
+  ok.classList.toggle('danger', danger);
+  const back = document.activeElement;
+  $('#ask').hidden = false;
+  (danger ? no : ok).focus(); // a risky choice is never one Enter away
+  return new Promise(res => {
+    askDone = v => {
+      askDone = null;
+      $('#ask').hidden = true;
+      if (back && back.isConnected) back.focus();
+      res(v);
+    };
+  });
+}
+$('#ask-ok').onclick = () => askDone && askDone(true);
+$('#ask-no').onclick = () => askDone && askDone(false);
+$('#ask').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); askDone && askDone(false); }
+  if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === $('#ask-ok') ? $('#ask-no') : $('#ask-ok')).focus(); }
+});
 
 // ------------------------------------------------------------- polling
 let timer = null;

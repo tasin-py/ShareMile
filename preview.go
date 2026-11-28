@@ -55,7 +55,7 @@ func humanBytes(n int64) string {
 
 func sharePage(r *http.Request, s *Share) string {
 	b, _ := webFS.ReadFile("web/share.html")
-	page := strings.ReplaceAll(string(b), "{{VERSION}}", appVersion)
+	page := string(webPage(b))
 
 	files := "1 file"
 	if len(s.Files) != 1 {

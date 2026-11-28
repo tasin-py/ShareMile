@@ -254,6 +254,15 @@ small{color:var(--muted);display:block;margin-top:6px;font-size:12px}
 .welcome-in.modal-in{width:min(520px,92vw);text-align:left}
 .modal-in .pathin input{text-align:left}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px}
+.welcome.ask{z-index:90}
+.ask-in{width:min(460px,92vw)}
+.ask-in h2{font-size:18px}
+#ask-msg{white-space:pre-line;overflow-wrap:anywhere}
+.ask-in .btn.primary.danger,.ask-in .btn.primary.danger:hover{background:var(--danger);border-color:var(--danger);color:var(--on-acc);box-shadow:none}
+[data-theme="xp"] .ask-in .btn.primary.danger{background:var(--xp-btn);border-color:var(--xp-btn-edge);color:var(--danger)}
+[data-theme="xp"] .ask-in .btn.primary.danger:not(:hover){box-shadow:none}
+[data-theme="xp"] .ask-in .btn.primary.danger:hover{box-shadow:inset 0 0 0 2px var(--xp-hover)}
+[data-theme="xp"] .ask-in h2{font:700 12px/1.3 var(--font)}
 .welcome-in.verify-in{width:min(600px,94vw);max-height:min(640px,90vh)}
 .verify-in .modal-actions{flex-wrap:wrap;align-items:center}
 .vspace{flex:1}

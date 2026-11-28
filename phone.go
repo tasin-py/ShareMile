@@ -130,7 +130,7 @@ func handlePhone(w http.ResponseWriter, r *http.Request) {
 		b, _ := webFS.ReadFile("web/phone.html")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		w.Write(bytes.ReplaceAll(b, []byte("{{VERSION}}"), []byte(appVersion)))
+		w.Write(webPage(b))
 	case "api":
 		writeJSON(w, map[string]any{"pc": pcName(), "app": appName, "version": appVersion, "chunk": 16 << 20})
 	case "up":
@@ -142,7 +142,7 @@ func handlePhone(w http.ResponseWriter, r *http.Request) {
 
 func phoneGone(w http.ResponseWriter, title, msg string) {
 	b, _ := webFS.ReadFile("web/gone.html")
-	b = bytes.ReplaceAll(b, []byte("{{VERSION}}"), []byte(appVersion))
+	b = webPage(b)
 	b = bytes.Replace(b, []byte("This share has ended</h1>"), []byte(htmlEsc(title)+"</h1>"), 1)
 	if i, j := bytes.Index(b, []byte(`<p class="muted">`)), bytes.Index(b, []byte("</p>")); i >= 0 && j > i {
 		b = append(append(append([]byte{}, b[:i]...), []byte(`<p class="muted">`+htmlEsc(msg))...), b[j:]...)

@@ -42,3 +42,11 @@ func themedPage(b []byte) []byte {
 	}
 	return b
 }
+
+// webPage fills in a browser page (the share page, the phone page, the
+// "ended" page): the version, and the app's theme, so a link opened in a
+// browser looks like the app, in the theme picked in Settings.
+func webPage(b []byte) []byte {
+	b = bytes.ReplaceAll(b, []byte("{{VERSION}}"), []byte(appVersion))
+	return bytes.Replace(b, []byte(`<html lang="en">`), []byte(`<html lang="en" data-theme="`+savedTheme()+`">`), 1)
+}

@@ -128,7 +128,7 @@ flowchart LR
 - **Refresh** on a joined network asks the host to recheck its folders right away; hosts also pick up added, changed or deleted files by themselves.
 - **Files back to you**: let people drop files back to you from the share page.
 - **Live stats**: visitors, bytes sent, live speed.
-- **8 themes**: Default Dark, **Windows XP**, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper. Text stays readable in all of them.
+- **8 themes**: Default Dark, **Windows XP**, Midnight Blue, Graphite, Noir Gold, Aurora, Light and Paper. Text stays readable in all of them. Links opened in a browser use the same theme, so the share page, the phone page and the chat look like the app.
 - **Windows XP theme**: a flat, 2D Classic XP look. It has the blue title bar with the app's name and version, XP minimize, maximize and close buttons, the blue task pane, 23px push buttons, check boxes, and the green block progress bar with an XP marquee while loading. There are no gradients and no dark pixels at the window's edges.
 - **One-click updates** from Settings or the About page, plus Buy Me a Coffee.
 - **Lightweight**: a single ~9 MB executable, about 25 MB of RAM for the sharing engine, and near-zero CPU when idle.
@@ -319,22 +319,26 @@ Requirements: Go 1.27+, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for t
 ```powershell
 git clone https://github.com/tasin-py/ShareMile
 cd ShareMile
-.\build.ps1 -Version 2.0.2
+.\build.ps1 -Version 2.0.3
 ```
-Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v2.0.2\`. Each version gets its own folder and older ones are never overwritten.
+Output: `dist\ShareMile-Portable.exe`, `dist\ShareMile-Setup.exe`, plus a copy in `builds\v2.0.3\`. Each version gets its own folder and older ones are never overwritten.
 
 **Linux** (on Ubuntu 24.04 or newer; needs `gcc`, `pkg-config`, `libgtk-3-dev` and `libwebkit2gtk-4.1-dev`):
 
 ```sh
-packaging/linux/build-linux.sh 2.0.2
+packaging/linux/build-linux.sh 2.0.3
 ```
-Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v2.0.2/`.
+Output: `dist/ShareMile-linux-amd64.tar.gz` (the program, `install.sh`, `uninstall.sh`), plus a copy in `builds/v2.0.3/`.
 
 Run tests: `go test ./...`. To run a second instance for testing: `ShareMile.exe --data C:\temp\profile2 --port 8760`.
 
 ## Changelog
 
 ```text
+v2.0.3 (2026-11-28)
+- New: pages opened in a browser use the theme picked in the app. The share page, the phone upload page and the "share has ended" page follow every theme, and in Windows XP they get the XP look: blue title bar, beige face, square XP buttons, green block progress bars, and the chat and file preview as XP windows. The browser progress bar is now a solid colour, like in the app.
+- Changed: questions such as "Make a new link?" or "Delete this network?" now open in ShareMile's own dialog, in your theme, instead of a Windows box titled "127.0.0.1 says". Each one has named buttons, Escape cancels, and for anything risky Cancel is selected first.
+
 v2.0.2 (2026-11-28)
 - Fixed: launching no longer flashes a blank window or the dark default theme before your theme. The app page arrives already in your saved theme (with the XP title bar for Windows XP). On Windows the window stays hidden until the page has drawn itself, then appears all at once. On Windows and Linux the background shows your theme's colour while the page loads.
 

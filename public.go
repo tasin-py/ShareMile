@@ -226,7 +226,7 @@ func handleShare(w http.ResponseWriter, r *http.Request) {
 		b, _ := webFS.ReadFile("web/gone.html")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusNotFound)
-		w.Write(bytes.ReplaceAll(b, []byte("{{VERSION}}"), []byte(appVersion)))
+		w.Write(webPage(b))
 		return
 	}
 	if len(parts) == 1 || parts[1] == "" {
